@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import Footer from "@/components/Footer";
 import Navbar from "@/components/Navbar";
+import BarMenu from "@/components/BarMenu";
 
 const GRADIENT_ORANGE =
   "linear-gradient(117.21deg, #FA8C3F 33.02%, #FF3030 109.3%)";
@@ -114,7 +115,7 @@ const Home = () => {
     <>
       <Navbar />
 
-      <main className="flex flex-1 flex-col items-center bg-[#F8FAFC] px-4 py-5 md:py-8">
+      <main className="flex flex-1 flex-col items-center mb-16 bg-[#F8FAFC] px-4 py-5 md:py-8">
         <div className="flex w-full max-w-md flex-col gap-6 md:max-w-2xl">
           {/* ===== Kartu profil ===== */}
           <section className="flex flex-col gap-4 rounded-3xl bg-white p-4 shadow-sm md:p-5">
@@ -167,9 +168,7 @@ const Home = () => {
                 />
                 <div>
                   <p className="text-lg font-bold leading-tight">7 Hari</p>
-                  <p className="text-[8px]  text-white/90">
-                    Streak Belajar
-                  </p>
+                  <p className="text-[8px]  text-white/90">Streak Belajar</p>
                 </div>
               </div>
 
@@ -467,7 +466,7 @@ const Home = () => {
         </div>
       </main>
 
-      <Footer />
+        <BarMenu />
     </>
   );
 };
