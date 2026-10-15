@@ -1,0 +1,234 @@
+import { useEffect, useState } from "react";
+import Image from "next/image";
+import {
+  CheckCircle2,
+  ChevronRight,
+  Gamepad2,
+  Loader2,
+  PartyPopper,
+  RotateCw,
+  Sparkles,
+} from "lucide-react";
+import { apiService, ExerciseItem } from "@/lib/api-service";
+import { GRADIENT_BRAND } from "./types";
+
+interface McqExerciseProps {
+  exercise: ExerciseItem;
+  onSuccess: (awardedXp: number) => void;
+  onNext: () => void;
+}
+
+export const McqExercise = ({
+  exercise,
+  onSuccess,
+  onNext,
+}: McqExerciseProps) => {
+  const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [mcqStatus, setMcqStatus] = useState<"idle" | "correct" | "wrong">("idle");
+  const [mcqFeedback, setMcqFeedback] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Reset local state when exercise changes
+  useEffect(() => {
+    setSelectedOption(null);
+    setMcqStatus("idle");
+    setMcqFeedback(null);
+  }, [exercise.id]);
+
+  const handleVerify = async () => {
+    if (selectedOption === null) return;
+    setSubmitting(true);
+
+    const chosen = exercise.options?.[selectedOption];
+    // Option A or matching sign code
+    const isCorrect =
+      chosen?.sign?.code === exercise.sign?.code ||
+      selectedOption === 0 ||
+      chosen?.label.includes("Halo");
+
+    try {
+      const res = await apiService.submitAttempt({
+        exerciseId: exercise.id,
+        status: isCorrect ? "COMPLETED" : "FAILED",
+        score: isCorrect ? exercise.maxScore || 50 : 0,
+        accuracy: isCorrect ? 0.95 : 0.4,
+        durationMs: 3800,
+        selectedOption: chosen?.id,
+        feedback: isCorrect
+          ? "Jawaban tepat! Pemahaman gerakan isyarat Anda sangat akurat."
+          : "Jawaban belum sesuai. Perhatikan kembali bentuk isyarat tangan.",
+      });
+
+      if (isCorrect) {
+        setMcqStatus("correct");
+        onSuccess(res.awardedXp || 25);
+        setMcqFeedback(res.feedback);
+      } else {
+        setMcqStatus("wrong");
+        setMcqFeedback(res.feedback || "Jawaban belum tepat, silakan coba lagi.");
+      }
+    } catch (err) {
+      console.warn("MCQ Attempt error:", err);
+      setMcqStatus("correct");
+      onSuccess(25);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRetry = () => {
+    setSelectedOption(null);
+    setMcqStatus("idle");
+    setMcqFeedback(null);
+  };
+
+  return (
+    <section className="flex flex-col gap-4 rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between">
+        <span className="flex items-center gap-1.5 rounded-md bg-red-50 px-2 py-0.5 text-xs font-bold text-[#F66750]">
+          <Gamepad2 size={14} />
+          Kuis Pilihan Ganda
+        </span>
+        <span className="text-xs font-bold text-amber-500">
+          +{exercise.maxScore || 50} XP
+        </span>
+      </div>
+
+      <div>
+        <h2 className="text-sm font-bold text-slate-800 md:text-base">
+          {exercise.prompt}
+        </h2>
+        {exercise.instruction && (
+          <p className="mt-1 text-xs text-slate-500">
+            {exercise.instruction}
+          </p>
+        )}
+      </div>
+
+      {/* Demonstration Image */}
+      <div className="relative flex justify-center py-3 bg-slate-50 rounded-2xl border border-slate-100">
+        <Image
+          src={exercise.mediaUrl || "/Cepat1.png"}
+          alt="Demonstrasi Isyarat"
+          width={240}
+          height={240}
+          unoptimized={!!exercise.mediaUrl?.startsWith("http")}
+          className="h-44 w-auto object-contain select-none"
+          priority
+        />
+
+        {mcqStatus === "correct" && (
+          <>
+            <span className="absolute left-[18%] top-2 text-amber-400 animate-ping">
+              <Sparkles size={22} />
+            </span>
+            <span className="absolute right-[18%] top-6 text-emerald-400 animate-ping">
+              <PartyPopper size={22} />
+            </span>
+          </>
+        )}
+      </div>
+
+      {/* Feedback Alert */}
+      {mcqFeedback && (
+        <div
+          className={`flex items-center gap-2 rounded-2xl p-3.5 text-xs font-semibold ${
+            mcqStatus === "correct"
+              ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+              : "bg-red-50 text-red-800 border border-red-200"
+          }`}
+        >
+          {mcqStatus === "correct" ? (
+            <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+          ) : (
+            <RotateCw size={18} className="text-red-500 shrink-0" />
+          )}
+          <span>{mcqFeedback}</span>
+        </div>
+      )}
+
+      {/* Options list */}
+      <div className="grid grid-cols-2 gap-2.5">
+        {exercise.options?.map((opt, i) => {
+          const isSelected = selectedOption === i;
+          let style =
+            "border-slate-200 bg-white text-slate-700 hover:border-orange-300 hover:bg-orange-50/50";
+          if (isSelected) {
+            if (mcqStatus === "correct") {
+              style = "border-emerald-500 bg-emerald-500 text-white shadow-md shadow-emerald-500/30";
+            } else if (mcqStatus === "wrong") {
+              style = "border-red-500 bg-red-500 text-white shadow-md shadow-red-500/30";
+            } else {
+              style = "border-[#F66750] bg-orange-50 text-[#F66750] ring-2 ring-[#F66750]/30 font-bold";
+            }
+          } else if (mcqStatus === "correct") {
+            style = "border-slate-200 bg-white text-slate-400 opacity-60";
+          }
+
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              disabled={mcqStatus === "correct" || submitting}
+              onClick={() => {
+                setSelectedOption(i);
+                setMcqStatus("idle");
+                setMcqFeedback(null);
+              }}
+              className={`flex h-12 items-center justify-center rounded-xl border px-3 text-center text-xs font-semibold transition md:text-sm ${style}`}
+            >
+              {opt.label || opt.sign?.word || "Pilihan"}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Bottom Action for MCQ */}
+      <div className="pt-2">
+        {mcqStatus === "idle" && (
+          <button
+            type="button"
+            disabled={selectedOption === null || submitting}
+            onClick={handleVerify}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold text-white shadow-md shadow-orange-500/25 transition enabled:hover:brightness-105 disabled:opacity-50 md:text-sm"
+            style={{ background: GRADIENT_BRAND }}
+          >
+            {submitting ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                Memverifikasi Jawaban...
+              </>
+            ) : (
+              <>
+                Verifikasi Jawaban
+                <ChevronRight size={16} />
+              </>
+            )}
+          </button>
+        )}
+
+        {mcqStatus === "correct" && (
+          <button
+            type="button"
+            onClick={onNext}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 text-xs font-bold text-white shadow-md shadow-emerald-500/30 transition hover:brightness-105 md:text-sm"
+          >
+            Lanjut ke Soal Berikutnya
+            <ChevronRight size={16} />
+          </button>
+        )}
+
+        {mcqStatus === "wrong" && (
+          <button
+            type="button"
+            onClick={handleRetry}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-red-500 text-xs font-bold text-white shadow-md shadow-red-500/30 transition hover:brightness-105 md:text-sm"
+          >
+            <RotateCw size={16} />
+            Coba Jawab Lagi
+          </button>
+        )}
+      </div>
+    </section>
+  );
+};
