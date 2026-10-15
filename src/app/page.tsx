@@ -3,7 +3,7 @@
   import {useState} from "react";
   import Image from "next/image";
   import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
+  import Footer from "@/components/Footer";
 
   export default function Home() {
       const [active, setActive] = useState(0);
@@ -195,7 +195,6 @@ import Footer from "@/components/Footer";
             {/* Tombol utama */}
             <a
               href="/login"
-              type="button"
               className="flex h-[52px] w-full items-center justify-center gap-3 rounded-[20px] bg-[#F86650] text-[16px] font-bold text-white transition-colors hover:bg-[#F05440]"
             >
               Mulai Belajar Sekarang
