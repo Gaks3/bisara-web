@@ -56,6 +56,17 @@ export function useBisindoDetector(
   const rafIdRef = useRef<number | null>(null);
   const isInferringRef = useRef(false);
 
+  const resetDetection = useCallback(() => {
+    sequenceBufferRef.current = [];
+    isInferringRef.current = false;
+    setDetection({
+      label: "idle",
+      confidence: 0,
+      probabilities: {},
+      bufferProgress: 0,
+    });
+  }, []);
+
   // 1. Inisialisasi ONNX Runtime Web + MediaPipe + classes.json
   const initModels = useCallback(async () => {
     if (
@@ -307,6 +318,7 @@ export function useBisindoDetector(
     isModelReady,
     modelError,
     detection,
+    resetDetection,
     /** Memuat model secara manual (akan di-skip jika sudah dimuat) */
     loadModels: initModels,
   };

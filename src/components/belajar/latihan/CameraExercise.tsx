@@ -1,12 +1,14 @@
 // src/components/belajar/latihan/CameraExercise.tsx
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  AlertCircle,
   Camera,
   CheckCircle2,
   ChevronRight,
   Loader2,
   Lock,
   Play,
+  RotateCcw,
   ScanFace,
   VideoOff,
 } from "lucide-react";
@@ -45,11 +47,17 @@ export const CameraExercise = ({
   const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Jalankan hook deteksi ONNX LSTM — model dimuat saat kamera aktif, frame diproses setelah deteksi dimulai
-  const { isModelLoading, isModelReady, modelError, detection, loadModels } =
-    useBisindoDetector(
-      videoRef,
-      detectionStarted && !detectionLocked && !cameraAttemptResult,
-    );
+  const {
+    isModelLoading,
+    isModelReady,
+    modelError,
+    detection,
+    resetDetection,
+    loadModels,
+  } = useBisindoDetector(
+    videoRef,
+    detectionStarted && !detectionLocked && !cameraAttemptResult,
+  );
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -74,7 +82,8 @@ export const CameraExercise = ({
     setDetectionStarted(false);
     setCountdown(null);
     setDetectionLocked(false);
-  }, [exercise.id, stopCamera, clearCountdown]);
+    resetDetection();
+  }, [exercise.id, stopCamera, clearCountdown, resetDetection]);
 
   useEffect(() => {
     if (cameraStatus === "active" && videoRef.current && streamRef.current) {
@@ -89,13 +98,12 @@ export const CameraExercise = ({
     }
   }, [cameraStatus, isModelReady, isModelLoading, loadModels]);
 
-  // Kunci hasil deteksi setelah buffer terisi penuh (30 frame) dan ada label terdeteksi
+  // Kunci hasil deteksi setelah buffer terisi penuh (30 frame)
   useEffect(() => {
     if (
       detectionStarted &&
       !detectionLocked &&
-      detection.bufferProgress >= 30 &&
-      detection.label !== "idle"
+      detection.bufferProgress >= 30
     ) {
       setDetectionLocked(true);
     }
@@ -103,7 +111,6 @@ export const CameraExercise = ({
     detectionStarted,
     detectionLocked,
     detection.bufferProgress,
-    detection.label,
   ]);
 
   const startCamera = async () => {
@@ -168,7 +175,54 @@ export const CameraExercise = ({
     setDetectionStarted(false);
     setCountdown(null);
     setDetectionLocked(false);
+    resetDetection();
   };
+
+  const targetWord =
+    exercise.cvConfig?.targetSign?.code || exercise.sign?.code || "A";
+  const threshold = exercise.cvConfig?.confidenceThreshold || 0.5;
+
+  console.log(exercise.cvConfig?.targetSign?.code)
+
+  // Cek apakah deteksi sudah benar (terverifikasi sukses dan bukan idle)
+  const isCorrect =
+    (!!cameraAttemptResult && cameraAttemptResult.status !== "FAILED") ||
+    (detectionLocked &&
+      detection.label.toLowerCase() !== "idle" &&
+      detection.label.toLowerCase() === targetWord.toLowerCase() &&
+      detection.confidence >= threshold);
+
+  // Cek apakah deteksi salah (kondisi idle = belum sesuai, label tidak cocok, atau submit FAILED)
+  const isWrong =
+    (!isCorrect &&
+      detectionLocked &&
+      (detection.label.toLowerCase() === "idle" ||
+        detection.label.toLowerCase() !== targetWord.toLowerCase() ||
+        detection.confidence < threshold)) ||
+    cameraAttemptResult?.status === "FAILED";
+
+  const handleRetry = useCallback(() => {
+    resetDetection();
+    setDetectionLocked(false);
+    setDetectionStarted(false);
+    setCameraAttemptResult(null);
+
+    // Mulai countdown baru secara otomatis agar langsung bersiap
+    setCountdown(COUNTDOWN_SECONDS);
+    clearCountdown();
+
+    let remaining = COUNTDOWN_SECONDS;
+    countdownTimerRef.current = setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        clearCountdown();
+        setCountdown(null);
+        setDetectionStarted(true);
+      } else {
+        setCountdown(remaining);
+      }
+    }, 1000);
+  }, [resetDetection, clearCountdown]);
 
   const handleVerify = useCallback(async () => {
     if (submitting || cameraAttemptResult) return;
@@ -199,10 +253,6 @@ export const CameraExercise = ({
       setSubmitting(false);
     }
   }, [submitting, cameraAttemptResult, exercise, detection, onSuccess]);
-
-  const targetWord =
-    exercise.cvConfig?.targetSign?.word || exercise.sign?.word || "A";
-  const threshold = exercise.cvConfig?.confidenceThreshold || 0.8;
 
   // Auto-verify jika label yang terdeteksi cocok dengan targetWord, melewati threshold, dan deteksi terkunci
   useEffect(() => {
@@ -275,7 +325,23 @@ export const CameraExercise = ({
     }
 
     if (detectionLocked) {
-      // Hasil sudah terkunci — tampilkan hasil final
+      if (isWrong) {
+        const isIdle = detection.label.toLowerCase() === "idle";
+        return (
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />
+            <span className="text-[11px] font-bold text-white">
+              Belum Sesuai:{" "}
+              <span className="text-red-300 uppercase">
+                {isIdle ? "IDLE (DIAM)" : detection.label}
+              </span>{" "}
+              {!isIdle && `(${(detection.confidence * 100).toFixed(0)}%)`}
+            </span>
+          </div>
+        );
+      }
+
+      // Hasil sudah terkunci — tampilkan hasil final (benar)
       return (
         <div className="flex items-center gap-2">
           <Lock size={12} className="text-emerald-400" />
@@ -379,10 +445,11 @@ export const CameraExercise = ({
 
             <div className="pointer-events-none absolute inset-x-8 inset-y-10 rounded-2xl border-2 border-dashed border-emerald-400/60" />
 
-            {/* Tombol Mulai Deteksi — hanya tampil jika belum mulai & tidak countdown */}
+            {/* Tombol Mulai Deteksi — hanya tampil jika belum mulai & tidak countdown & belum salah */}
             {!detectionStarted &&
               countdown === null &&
-              !cameraAttemptResult && (
+              !cameraAttemptResult &&
+              !isWrong && (
                 <button
                   type="button"
                   onClick={handleStartDetection}
@@ -403,10 +470,13 @@ export const CameraExercise = ({
                 </button>
               )}
 
+            {/* Tombol / Box Mengulang ketika salah di dalam box kamera (hanya tampil jika salah & belum benar) */}
+            
+
             <button
               type="button"
               onClick={handleStopCamera}
-              className="absolute bottom-3 right-3 rounded-lg bg-black/60 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur transition hover:bg-black/80"
+              className="absolute bottom-3 right-3 rounded-lg bg-black/60 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur transition hover:bg-black/80 z-20"
             >
               Matikan Kamera
             </button>
@@ -458,41 +528,52 @@ export const CameraExercise = ({
       {/* Bottom Action for Camera */}
       <div className="pt-2">
         {!cameraAttemptResult ? (
-          <button
-            type="button"
-            disabled={
-              cameraStatus !== "active" ||
-              submitting ||
-              isModelLoading ||
-              !detectionLocked
-            }
-            onClick={handleVerify}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold text-white shadow-md shadow-orange-500/25 transition enabled:hover:brightness-105 disabled:opacity-50 md:text-sm"
-            style={{ background: GRADIENT_BRAND }}
-          >
-            {submitting ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                Memverifikasi Gestur Tangan...
-              </>
-            ) : !detectionStarted ? (
-              <>
-                <Play size={18} />
-                Mulai Deteksi Terlebih Dahulu
-              </>
-            ) : !detectionLocked ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                Menunggu Hasil Deteksi...
-              </>
-            ) : (
-              <>
-                <ScanFace size={18} />
-                Verifikasi Gerakan Kamera AI (+50 XP)
-                <ChevronRight size={16} />
-              </>
-            )}
-          </button>
+          isWrong ? (
+            <button
+              type="button"
+              onClick={handleRetry}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-red-500 text-xs font-bold text-white shadow-md shadow-red-500/30 transition hover:brightness-105 active:scale-95 md:text-sm"
+            >
+              <RotateCcw size={16} />
+              Gerakan Belum Tepat, Coba Ulangi
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={
+                cameraStatus !== "active" ||
+                submitting ||
+                isModelLoading ||
+                !detectionLocked
+              }
+              onClick={handleVerify}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold text-white shadow-md shadow-orange-500/25 transition enabled:hover:brightness-105 disabled:opacity-50 md:text-sm"
+              style={{ background: GRADIENT_BRAND }}
+            >
+              {submitting ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Memverifikasi Gestur Tangan...
+                </>
+              ) : !detectionStarted ? (
+                <>
+                  <Play size={18} />
+                  Mulai Deteksi Terlebih Dahulu
+                </>
+              ) : !detectionLocked ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Menunggu Hasil Deteksi...
+                </>
+              ) : (
+                <>
+                  <ScanFace size={18} />
+                  Verifikasi Gerakan Kamera AI (+50 XP)
+                  <ChevronRight size={16} />
+                </>
+              )}
+            </button>
+          )
         ) : (
           <button
             type="button"
