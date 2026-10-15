@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["onnxruntime-web"],
   images: {
     remotePatterns: [
       {
@@ -37,6 +38,31 @@ const nextConfig: NextConfig = {
         hostname: "localhost",
       },
     ],
+  },
+  webpack: (config, { isServer }) => {
+    config.experiments = {
+      ...config.experiments,
+      asyncWebAssembly: true,
+      layers: true,
+    };
+
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+        crypto: false,
+        perf_hooks: false,
+        os: false,
+      };
+    }
+
+    config.module.rules.push({
+      test: /\.wasm$/,
+      type: "asset/resource",
+    });
+
+    return config;
   },
 };
 
