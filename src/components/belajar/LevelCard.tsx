@@ -65,7 +65,7 @@ export const LevelCard = ({
           <button
             type="button"
             onClick={() => onStart(lessonSlug)}
-            className="mt-2.5 inline-flex items-center gap-1.5 rounded-xl border-2 border-[#F97316] bg-white px-4 py-2 text-xs font-bold text-[#F97316] transition hover:bg-[#F97316]/10 active:scale-95"
+            className="mt-2.5 inline-flex items-center gap-1.5 rounded-xl border border-slate bg-white px-4 py-2 text-xs font-bold text-[#F97316] transition hover:bg-[#F97316]/10 active:scale-95"
           >
             <RotateCcw size={14} />
             Ulangi Level

@@ -283,7 +283,6 @@ export const CameraExercise = ({
       return (
         <span className="flex items-center gap-1.5 text-[11px] font-bold text-amber-300">
           <Loader2 size={13} className="animate-spin" />
-          Memuat Model ONNX &amp; MediaPipe...
         </span>
       );
     }
@@ -313,7 +312,7 @@ export const CameraExercise = ({
       return (
         <span className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-300">
           <CheckCircle2 size={13} />
-          Model siap
+          
         </span>
       );
     }
@@ -381,15 +380,6 @@ export const CameraExercise = ({
 
   return (
     <section className="flex flex-col gap-4 rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between">
-        <span className="flex items-center gap-1.5 rounded-md bg-red-50 px-2 py-0.5 text-xs font-bold text-[#F66750]">
-          <ScanFace size={16} />
-          Latihan Kamera AI (ONNX LSTM)
-        </span>
-        <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-600">
-          Deteksi Real-Time
-        </span>
-      </div>
 
       {/* Guidance Card */}
       <div className="rounded-2xl border border-orange-100 bg-orange-50/60 p-3.5 text-xs">
@@ -453,12 +443,12 @@ export const CameraExercise = ({
                   {!isModelReady ? (
                     <>
                       <Loader2 size={16} className="animate-spin" />
-                      Memuat Model...
+                      
                     </>
                   ) : (
                     <>
                       <Play size={16} />
-                      Mulai Deteksi
+                      Mulai
                     </>
                   )}
                 </button>
@@ -502,19 +492,19 @@ export const CameraExercise = ({
 
       {/* Attempt Result Card */}
       {cameraAttemptResult && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+        <div className="rounded-2xl ">
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-800">
               <CheckCircle2 size={16} className="text-emerald-600" />
-              Gestur Terverifikasi Sukses!
+              Terverifikasi
             </span>
             <span className="rounded-full bg-emerald-600 px-2.5 py-0.5 text-[10px] font-bold text-white">
               +{cameraAttemptResult.awardedXp} XP
             </span>
           </div>
-          <p className="mt-2 text-xs text-emerald-700">
+          {/* <p className="mt-2 text-xs text-emerald-700">
             {cameraAttemptResult.feedback}
-          </p>
+          </p> */}
         </div>
       )}
 

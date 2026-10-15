@@ -44,11 +44,11 @@ export const LatihanCompleted = ({
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 rounded-2xl bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-700 border border-amber-200">
             <Sparkles size={18} className="text-amber-500" />
-            +{totalXpEarned || 75} XP Diperoleh
+            +{totalXpEarned || 75} XP
           </div>
           <div className="flex items-center gap-2 rounded-2xl bg-orange-50 px-4 py-2.5 text-sm font-bold text-[#F66750] border border-orange-200">
             <Flame size={18} className="text-[#F66750]" />
-            Streak Konsisten
+            Streak
           </div>
         </div>
 
