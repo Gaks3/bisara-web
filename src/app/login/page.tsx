@@ -3,12 +3,15 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
+  AlertCircle,
   ArrowLeft,
   ArrowRight,
-  Camera,
+  CheckCircle2,
   Eye,
   EyeOff,
+  Loader2,
   Lock,
   LogIn,
   Mail,
@@ -17,6 +20,7 @@ import {
 import Footer from "@/components/Footer";
 import Navbar from "@/components/Navbar";
 import { authClient } from "@/lib/auth-client";
+import { apiService } from "@/lib/api-service";
 
 const GoogleIcon = () => (
   <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
@@ -40,18 +44,84 @@ const GoogleIcon = () => (
 );
 
 const Login = () => {
+  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    if (!email || !password) {
+      setErrorMessage("Silakan masukkan email dan kata sandi Anda.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const res = await apiService.signInEmail({
+        email,
+        password,
+        rememberMe,
+      });
+
+      if (res?.error) {
+        setErrorMessage(
+          typeof res.error === "string"
+            ? res.error
+            : res.error.message || "Gagal masuk. Periksa kembali email dan kata sandi Anda."
+        );
+        setLoading(false);
+        return;
+      }
+
+      setSuccessMessage("Berhasil masuk! Mengarahkan ke beranda...");
+      // Redirect to /home
+      setTimeout(() => {
+        router.push("/home");
+      }, 800);
+    } catch (err: unknown) {
+      console.error("Login error:", err);
+      const errObj = err as { response?: { data?: { error?: { message?: string }; message?: string } }; message?: string };
+      const msg =
+        errObj.response?.data?.error?.message ||
+        errObj.response?.data?.message ||
+        errObj.message ||
+        "Gagal masuk. Periksa kembali kredensial Anda.";
+      setErrorMessage(msg);
+      setLoading(false);
+    }
   };
 
   const handleLoginWithGoogle = async () => {
-    await authClient.signIn.social({
-      provider: "google",
-      callbackURL: `${process.env.NEXT_PUBLIC_BASE_URL}`,
-      errorCallbackURL: `${process.env.NEXT_PUBLIC_BASE_URL}/auth/error`,
-    });
+    setErrorMessage("");
+    setGoogleLoading(true);
+
+    try {
+      const redirectUrl = typeof window !== "undefined" ? `${window.location.origin}/home` : "/home";
+      await authClient.signIn.social({
+        provider: "google",
+        callbackURL: redirectUrl,
+        errorCallbackURL: `${redirectUrl}?error=google_failed`,
+      });
+    } catch (err: unknown) {
+      console.error("Google login error:", err);
+      // Fallback: direct redirect to backend endpoint
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+      window.location.href = `${baseUrl}/api/auth/sign-in/google?callbackURL=${encodeURIComponent(
+        window.location.origin + "/home"
+      )}`;
+    } finally {
+      setTimeout(() => setGoogleLoading(false), 2000);
+    }
   };
 
   return (
@@ -60,6 +130,7 @@ const Login = () => {
 
       <main className="flex flex-1 flex-col items-center bg-[#F8FAFC] px-4 py-6 md:py-10">
         <div className="flex w-full max-w-md flex-col gap-5">
+          {/* Header Banner */}
           <section
             className="relative overflow-hidden rounded-3xl p-5 text-white shadow-lg shadow-orange-500/20 md:p-6"
             style={{
@@ -82,13 +153,13 @@ const Login = () => {
               <h1 className="text-xl font-bold leading-tight md:text-2xl">
                 Selamat Datang di Bisara
               </h1>
-              <p className="max-w-[16rem] font-light text-xs leading-relaxed text-white/70 md:max-w-xs md:text-sm">
-                Mari belajar bahasa isyarat dengan mudah, ramah, dan bebas
-                hambatan.
+              <p className="max-w-[16rem] font-light text-xs leading-relaxed text-white/80 md:max-w-xs md:text-sm">
+                Mari belajar bahasa isyarat dengan mudah, ramah, dan bebas hambatan.
               </p>
             </div>
           </section>
 
+          {/* Tab Masuk / Daftar */}
           <div
             role="tablist"
             aria-label="Pilih Masuk atau Daftar"
@@ -114,14 +185,35 @@ const Login = () => {
             </Link>
           </div>
 
+          {/* Form Card */}
           <section className="rounded-3xl bg-white p-5 shadow-sm md:p-6">
+            {errorMessage && (
+              <div
+                role="alert"
+                className="mb-4 flex items-center gap-2.5 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700"
+              >
+                <AlertCircle size={18} className="shrink-0 text-red-500" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
+
+            {successMessage && (
+              <div
+                role="status"
+                className="mb-4 flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-medium text-emerald-700"
+              >
+                <CheckCircle2 size={18} className="shrink-0 text-emerald-500" />
+                <span>{successMessage}</span>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
                 <label
                   htmlFor="identifier"
                   className="text-sm font-semibold text-slate-700"
                 >
-                  Email atau Nama Pengguna
+                  Email
                 </label>
                 <div className="relative">
                   <Mail
@@ -131,8 +223,11 @@ const Login = () => {
                   <input
                     id="identifier"
                     name="identifier"
-                    type="text"
-                    autoComplete="username"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="email"
                     placeholder="contoh@email.com"
                     className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm text-slate-700 placeholder:text-slate-400 focus:border-[#F66750] focus:outline-none focus:ring-2 focus:ring-[#F66750]/20"
                   />
@@ -163,6 +258,9 @@ const Login = () => {
                     id="password"
                     name="password"
                     type={showPassword ? "text" : "password"}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     autoComplete="current-password"
                     placeholder="••••••••"
                     className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-12 text-sm text-slate-700 placeholder:text-slate-400 focus:border-[#F66750] focus:outline-none focus:ring-2 focus:ring-[#F66750]/20"
@@ -186,6 +284,8 @@ const Login = () => {
                 <input
                   type="checkbox"
                   name="remember"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
                   className="h-4 w-4 rounded border-slate-300 accent-[#F66750]"
                 />
                 Ingat saya di perangkat ini
@@ -193,14 +293,24 @@ const Login = () => {
 
               <button
                 type="submit"
-                className="flex h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-bold text-white shadow-md shadow-orange-500/25 transition hover:brightness-105 active:scale-[0.99]"
+                disabled={loading}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-bold text-white shadow-md shadow-orange-500/25 transition hover:brightness-105 active:scale-[0.99] disabled:opacity-75 disabled:cursor-wait"
                 style={{
                   background:
                     "linear-gradient(135deg, #F66750 0%, #F97316 100%)",
                 }}
               >
-                Masuk Sekarang
-                <ArrowRight size={16} />
+                {loading ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    Memproses Masuk...
+                  </>
+                ) : (
+                  <>
+                    Masuk Sekarang
+                    <ArrowRight size={16} />
+                  </>
+                )}
               </button>
 
               <div className="flex items-center gap-3 text-xs text-slate-400">
@@ -212,19 +322,21 @@ const Login = () => {
               <button
                 onClick={handleLoginWithGoogle}
                 type="button"
-                className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                disabled={googleLoading}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-70"
               >
-                <GoogleIcon />
-                Masuk dengan Google
+                {googleLoading ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin text-slate-500" />
+                    Menghubungkan ke Google...
+                  </>
+                ) : (
+                  <>
+                    <GoogleIcon />
+                    Masuk dengan Google
+                  </>
+                )}
               </button>
-
-              {/* <button
-                type="button"
-                className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 text-sm font-semibold text-[#F66750] transition hover:bg-red-100"
-              >
-                <Camera size={18} />
-                Masuk dengan Bahasa Isyarat (Visual ID)
-              </button> */}
             </form>
           </section>
 
