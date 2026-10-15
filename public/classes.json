@@ -1,0 +1,21 @@
+{
+  "classes": [
+    "1",
+    "A",
+    "hari",
+    "idle"
+  ],
+  "class_to_idx": {
+    "1": 0,
+    "A": 1,
+    "hari": 2,
+    "idle": 3
+  },
+  "idx_to_class": {
+    "0": "1",
+    "1": "A",
+    "2": "hari",
+    "3": "idle"
+  },
+  "num_classes": 4
+}
