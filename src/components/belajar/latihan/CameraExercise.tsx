@@ -1,14 +1,20 @@
+// src/components/belajar/latihan/CameraExercise.tsx
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Camera,
   CheckCircle2,
   ChevronRight,
   Loader2,
+  Lock,
+  Play,
   ScanFace,
   VideoOff,
 } from "lucide-react";
 import { apiService, AttemptData, ExerciseItem } from "@/lib/api-service";
+import { useBisindoDetector } from "@/hooks/useBisindoDetector";
 import { CameraStatus, GRADIENT_BRAND } from "./types";
+
+const COUNTDOWN_SECONDS = 3;
 
 interface CameraExerciseProps {
   exercise: ExerciseItem;
@@ -23,28 +29,52 @@ export const CameraExercise = ({
 }: CameraExerciseProps) => {
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>("idle");
   const [cameraMessage, setCameraMessage] = useState("");
-  const [cameraConfidence] = useState(0.96);
-  const [cameraAttemptResult, setCameraAttemptResult] = useState<AttemptData | null>(null);
+  const [cameraAttemptResult, setCameraAttemptResult] =
+    useState<AttemptData | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // State baru: deteksi belum dimulai sampai user menekan "Mulai Deteksi"
+  const [detectionStarted, setDetectionStarted] = useState(false);
+  // State countdown sebelum deteksi dimulai
+  const [countdown, setCountdown] = useState<number | null>(null);
+  // State untuk mengunci hasil deteksi setelah selesai
+  const [detectionLocked, setDetectionLocked] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Jalankan hook deteksi ONNX LSTM — model dimuat saat kamera aktif, frame diproses setelah deteksi dimulai
+  const { isModelLoading, isModelReady, modelError, detection, loadModels } =
+    useBisindoDetector(
+      videoRef,
+      detectionStarted && !detectionLocked && !cameraAttemptResult,
+    );
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
   }, []);
 
-  // Cleanup on unmount
+  const clearCountdown = useCallback(() => {
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+  }, []);
+
   useEffect(() => stopCamera, [stopCamera]);
 
-  // Reset when exercise changes
   useEffect(() => {
     stopCamera();
+    clearCountdown();
     setCameraStatus("idle");
     setCameraMessage("");
     setCameraAttemptResult(null);
-  }, [exercise.id, stopCamera]);
+    setDetectionStarted(false);
+    setCountdown(null);
+    setDetectionLocked(false);
+  }, [exercise.id, stopCamera, clearCountdown]);
 
   useEffect(() => {
     if (cameraStatus === "active" && videoRef.current && streamRef.current) {
@@ -52,10 +82,36 @@ export const CameraExercise = ({
     }
   }, [cameraStatus]);
 
+  // Muat model segera setelah kamera aktif (agar siap sebelum user menekan "Mulai Deteksi")
+  useEffect(() => {
+    if (cameraStatus === "active" && !isModelReady && !isModelLoading) {
+      loadModels();
+    }
+  }, [cameraStatus, isModelReady, isModelLoading, loadModels]);
+
+  // Kunci hasil deteksi setelah buffer terisi penuh (30 frame) dan ada label terdeteksi
+  useEffect(() => {
+    if (
+      detectionStarted &&
+      !detectionLocked &&
+      detection.bufferProgress >= 30 &&
+      detection.label !== "idle"
+    ) {
+      setDetectionLocked(true);
+    }
+  }, [
+    detectionStarted,
+    detectionLocked,
+    detection.bufferProgress,
+    detection.label,
+  ]);
+
   const startCamera = async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
       setCameraStatus("error");
-      setCameraMessage("Browser tidak mendukung kamera atau halaman tidak memakai HTTPS.");
+      setCameraMessage(
+        "Browser tidak mendukung kamera atau halaman tidak memakai HTTPS.",
+      );
       return;
     }
 
@@ -64,7 +120,7 @@ export const CameraExercise = ({
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user" },
+        video: { facingMode: "user", width: 640, height: 480 },
         audio: false,
       });
       streamRef.current = stream;
@@ -73,7 +129,9 @@ export const CameraExercise = ({
       const name = err instanceof DOMException ? err.name : "";
       if (name === "NotAllowedError" || name === "SecurityError") {
         setCameraStatus("denied");
-        setCameraMessage("Izin kamera ditolak. Berikan izin di browser untuk melanjutkan.");
+        setCameraMessage(
+          "Izin kamera ditolak. Berikan izin di browser untuk melanjutkan.",
+        );
       } else {
         setCameraStatus("error");
         setCameraMessage("Kamera tidak dapat diakses.");
@@ -81,13 +139,39 @@ export const CameraExercise = ({
     }
   };
 
-  const handleStopCamera = () => {
-    stopCamera();
-    setCameraStatus("idle");
-    setCameraMessage("");
+  const handleStartDetection = () => {
+    // Mulai countdown sebelum deteksi
+    setCountdown(COUNTDOWN_SECONDS);
+    setDetectionLocked(false);
+    setDetectionStarted(false);
+
+    clearCountdown();
+
+    let remaining = COUNTDOWN_SECONDS;
+    countdownTimerRef.current = setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        clearCountdown();
+        setCountdown(null);
+        setDetectionStarted(true);
+      } else {
+        setCountdown(remaining);
+      }
+    }, 1000);
   };
 
-  const handleVerify = async () => {
+  const handleStopCamera = () => {
+    stopCamera();
+    clearCountdown();
+    setCameraStatus("idle");
+    setCameraMessage("");
+    setDetectionStarted(false);
+    setCountdown(null);
+    setDetectionLocked(false);
+  };
+
+  const handleVerify = useCallback(async () => {
+    if (submitting || cameraAttemptResult) return;
     setSubmitting(true);
 
     try {
@@ -95,9 +179,15 @@ export const CameraExercise = ({
         exerciseId: exercise.id,
         status: "COMPLETED",
         score: exercise.maxScore || 50,
-        accuracy: cameraConfidence,
+        accuracy: Number(detection.confidence.toFixed(2)) || 0.9,
         durationMs: 4500,
-        feedback: "Posisi telapak tangan tepat & irama gerakan stabil.",
+        feedback: `Isyarat "${detection.label}" terdeteksi dengan akurasi ${(
+          detection.confidence * 100
+        ).toFixed(0)}%.`,
+        detectionData: {
+          detectedClass: detection.label,
+          probabilities: detection.probabilities,
+        },
       });
 
       setCameraAttemptResult(res);
@@ -108,24 +198,133 @@ export const CameraExercise = ({
     } finally {
       setSubmitting(false);
     }
-  };
+  }, [submitting, cameraAttemptResult, exercise, detection, onSuccess]);
+
+  const targetWord =
+    exercise.cvConfig?.targetSign?.word || exercise.sign?.word || "A";
+  const threshold = exercise.cvConfig?.confidenceThreshold || 0.8;
+
+  // Auto-verify jika label yang terdeteksi cocok dengan targetWord, melewati threshold, dan deteksi terkunci
+  useEffect(() => {
+    if (
+      cameraStatus === "active" &&
+      !cameraAttemptResult &&
+      !submitting &&
+      detectionLocked &&
+      detection.label.toLowerCase() === targetWord.toLowerCase() &&
+      detection.confidence >= threshold
+    ) {
+      handleVerify();
+    }
+  }, [
+    cameraStatus,
+    cameraAttemptResult,
+    submitting,
+    detectionLocked,
+    detection,
+    targetWord,
+    threshold,
+    handleVerify,
+  ]);
 
   const handleNext = () => {
     stopCamera();
     onNext();
   };
 
-  const targetWord =
-    exercise.cvConfig?.targetSign?.word ||
-    exercise.sign?.word ||
-    "HALO";
+  // Determine HUD content
+  const renderHUDContent = () => {
+    // Model loading — tampil paling awal karena model dimuat segera saat kamera aktif
+    if (isModelLoading) {
+      return (
+        <span className="flex items-center gap-1.5 text-[11px] font-bold text-amber-300">
+          <Loader2 size={13} className="animate-spin" />
+          Memuat Model ONNX &amp; MediaPipe...
+        </span>
+      );
+    }
+
+    if (modelError) {
+      return (
+        <span className="text-[11px] font-bold text-red-400">
+          Error: {modelError}
+        </span>
+      );
+    }
+
+    if (countdown !== null) {
+      // Countdown sedang berjalan
+      return (
+        <span className="flex items-center gap-1.5 text-[11px] font-bold text-amber-300">
+          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-400/20 text-xs font-extrabold text-amber-300 animate-pulse">
+            {countdown}
+          </span>
+          Bersiap... Siapkan gestur Anda!
+        </span>
+      );
+    }
+
+    if (!detectionStarted) {
+      // Model sudah siap, menunggu user menekan tombol
+      return (
+        <span className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-300">
+          <CheckCircle2 size={13} />
+          Model siap
+        </span>
+      );
+    }
+
+    if (detectionLocked) {
+      // Hasil sudah terkunci — tampilkan hasil final
+      return (
+        <div className="flex items-center gap-2">
+          <Lock size={12} className="text-emerald-400" />
+          <span className="text-[11px] font-bold text-white">
+            Hasil:{" "}
+            <span className="text-emerald-300 uppercase">
+              {detection.label}
+            </span>{" "}
+            ({(detection.confidence * 100).toFixed(0)}%)
+          </span>
+        </div>
+      );
+    }
+
+    if (detection.bufferProgress < 30) {
+      const progressPercent = Math.round((detection.bufferProgress / 30) * 100);
+      return (
+        <div className="flex flex-col gap-1">
+          <span className="text-[11px] font-bold text-sky-300">
+            Tahan gestur Anda... ({progressPercent}%)
+          </span>
+          <div className="h-1 w-full rounded-full bg-white/20 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-sky-400 transition-all duration-150"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex items-center gap-2">
+        <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+        <span className="text-[11px] font-bold text-white">
+          Terdeteksi:{" "}
+          <span className="text-emerald-300 uppercase">{detection.label}</span>{" "}
+          ({(detection.confidence * 100).toFixed(0)}%)
+        </span>
+      </div>
+    );
+  };
 
   return (
     <section className="flex flex-col gap-4 rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1.5 rounded-md bg-red-50 px-2 py-0.5 text-xs font-bold text-[#F66750]">
           <ScanFace size={16} />
-          Latihan Kamera AI
+          Latihan Kamera AI (ONNX LSTM)
         </span>
         <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-600">
           Deteksi Real-Time
@@ -142,7 +341,7 @@ export const CameraExercise = ({
         </p>
         <p className="mt-1 text-slate-600 leading-relaxed">
           {exercise.instruction ||
-            "Buka telapak tangan Anda setinggi dada lalu lambaikan perlahan ke samping."}
+            "Peragakan isyarat di depan kamera hingga mencapai 30 frame berurutan."}
         </p>
       </div>
 
@@ -159,15 +358,50 @@ export const CameraExercise = ({
               className="h-full w-full -scale-x-100 object-cover"
             />
 
-            {/* HUD Overlay */}
-            <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2 rounded-xl bg-black/60 px-3 py-1.5 backdrop-blur">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-[11px] font-bold text-white">
-                Deteksi AI: {(cameraConfidence * 100).toFixed(0)}% Akurat
-              </span>
+            {/* Countdown overlay besar di tengah */}
+            {countdown !== null && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50">
+                <div className="flex flex-col items-center gap-2">
+                  <span className="text-7xl font-extrabold text-white drop-shadow-lg animate-pulse">
+                    {countdown}
+                  </span>
+                  <span className="text-sm font-semibold text-white/80">
+                    Siapkan gestur Anda!
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* HUD Overlay Status Model & Prediksi */}
+            <div className="pointer-events-none absolute left-3 top-3 flex flex-col gap-1.5 rounded-xl bg-black/65 px-3 py-2 backdrop-blur">
+              {renderHUDContent()}
             </div>
 
             <div className="pointer-events-none absolute inset-x-8 inset-y-10 rounded-2xl border-2 border-dashed border-emerald-400/60" />
+
+            {/* Tombol Mulai Deteksi — hanya tampil jika belum mulai & tidak countdown */}
+            {!detectionStarted &&
+              countdown === null &&
+              !cameraAttemptResult && (
+                <button
+                  type="button"
+                  onClick={handleStartDetection}
+                  disabled={!isModelReady}
+                  className="absolute bottom-14 left-1/2 z-10 -translate-x-1/2 inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-emerald-500/30 transition hover:brightness-110 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {!isModelReady ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Memuat Model...
+                    </>
+                  ) : (
+                    <>
+                      <Play size={16} />
+                      Mulai Deteksi
+                    </>
+                  )}
+                </button>
+              )}
 
             <button
               type="button"
@@ -190,10 +424,14 @@ export const CameraExercise = ({
               className="inline-flex items-center gap-2 rounded-xl bg-[#F66750] px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-orange-500/25 transition hover:brightness-105 disabled:opacity-70"
             >
               <Camera size={16} />
-              {cameraStatus === "loading" ? "Meminta izin..." : "Aktifkan Kamera AI"}
+              {cameraStatus === "loading"
+                ? "Meminta izin..."
+                : "Aktifkan Kamera AI"}
             </button>
             {cameraMessage && (
-              <p className="text-[11px] text-amber-300 max-w-xs">{cameraMessage}</p>
+              <p className="text-[11px] text-amber-300 max-w-xs">
+                {cameraMessage}
+              </p>
             )}
           </div>
         )}
@@ -222,7 +460,12 @@ export const CameraExercise = ({
         {!cameraAttemptResult ? (
           <button
             type="button"
-            disabled={cameraStatus !== "active" || submitting}
+            disabled={
+              cameraStatus !== "active" ||
+              submitting ||
+              isModelLoading ||
+              !detectionLocked
+            }
             onClick={handleVerify}
             className="flex h-12 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold text-white shadow-md shadow-orange-500/25 transition enabled:hover:brightness-105 disabled:opacity-50 md:text-sm"
             style={{ background: GRADIENT_BRAND }}
@@ -231,6 +474,16 @@ export const CameraExercise = ({
               <>
                 <Loader2 size={16} className="animate-spin" />
                 Memverifikasi Gestur Tangan...
+              </>
+            ) : !detectionStarted ? (
+              <>
+                <Play size={18} />
+                Mulai Deteksi Terlebih Dahulu
+              </>
+            ) : !detectionLocked ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                Menunggu Hasil Deteksi...
               </>
             ) : (
               <>
