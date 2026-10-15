@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { Loader2, LogOut } from "lucide-react";
 import {
   apiService,
   ExerciseItem,
@@ -20,6 +20,73 @@ import {
   WorkoutStage,
 } from "@/components/belajar/latihan";
 
+
+function ExitConfirmModal({
+  open,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  // Tutup dengan tombol Escape
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, onCancel]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+      onClick={onCancel}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="exit-modal-title"
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#F66750]/10">
+          <LogOut className="h-6 w-6 text-[#F66750]" />
+        </div>
+
+        <h2
+          id="exit-modal-title"
+          className="text-center text-lg font-bold text-slate-800"
+        >
+          Keluar dari sesi belajar?
+        </h2>
+        <p className="mt-2 text-center text-sm text-slate-500">
+          Selesaikan soal untuk membuka level berikutnya.
+        </p>
+
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row-reverse">
+          <button
+            onClick={onCancel}
+            className="w-full rounded-xl bg-[#F66750] px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
+          >
+            Lanjut Belajar
+          </button>
+          <button
+            onClick={onConfirm}
+            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+          >
+            Ya, Keluar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LatihanExerciseContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -30,11 +97,13 @@ function LatihanExerciseContent() {
   const [exercises, setExercises] = useState<ExerciseItem[]>(FALLBACK_LESSON_DETAIL.exercises);
   const [loading, setLoading] = useState(true);
 
-  // Flow Stage: LEARNING_MATERIALS -> EXERCISES -> COMPLETED
   const [stage, setStage] = useState<WorkoutStage>("LEARNING_MATERIALS");
   const [materialIndex, setMaterialIndex] = useState(0);
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const [totalXpEarned, setTotalXpEarned] = useState(0);
+
+  // State modal keluar
+  const [showExitModal, setShowExitModal] = useState(false);
 
   // Load lesson detail
   useEffect(() => {
@@ -67,7 +136,6 @@ function LatihanExerciseContent() {
     };
   }, [lessonSlug]);
 
-  // Navigation across Materials
   const currentMaterial = materials[materialIndex];
   const isLastMaterial = materialIndex === materials.length - 1;
 
@@ -75,7 +143,6 @@ function LatihanExerciseContent() {
     if (!isLastMaterial) {
       setMaterialIndex((prev) => prev + 1);
     } else {
-      // Finished all materials! Now start the exercises
       setStage("EXERCISES");
       setExerciseIndex(0);
     }
@@ -87,7 +154,6 @@ function LatihanExerciseContent() {
     }
   };
 
-  // Exercise Navigation & Completion
   const currentExercise: ExerciseItem | undefined = exercises[exerciseIndex];
   const isCameraExercise =
     currentExercise?.type === "AI_PRACTICE" ||
@@ -104,8 +170,6 @@ function LatihanExerciseContent() {
     if (exerciseIndex < exercises.length - 1) {
       setExerciseIndex((prev) => prev + 1);
     } else {
-      // Completed all exercises for this level!
-      // Unlock next level in localStorage
       const levelCode = lesson.level?.code || 1;
       saveCompletedLevel(levelCode);
       setStage("COMPLETED");
@@ -113,16 +177,14 @@ function LatihanExerciseContent() {
   };
 
   const handleExit = () => {
-    if (
-      confirm(
-        "Ingin keluar dari sesi belajar ini? Selesaikan soal untuk membuka level berikutnya."
-      )
-    ) {
-      router.push("/belajar");
-    }
+    setShowExitModal(true);
   };
 
-  // Progress bar calculation
+  const handleConfirmExit = () => {
+    setShowExitModal(false);
+    router.push("/belajar");
+  };
+
   let progressPercent = 0;
   if (stage === "LEARNING_MATERIALS") {
     progressPercent = Math.round(
@@ -138,7 +200,6 @@ function LatihanExerciseContent() {
     progressPercent = 100;
   }
 
-  // STAGE 3: COMPLETED SCREEN
   if (stage === "COMPLETED") {
     return (
       <LatihanCompleted
@@ -173,7 +234,6 @@ function LatihanExerciseContent() {
           </div>
         ) : (
           <>
-            {/* TAHAP 1: BELAJAR DULU (FIELD MATERIALS DARI API RESPONSE) */}
             {stage === "LEARNING_MATERIALS" && currentMaterial && (
               <MaterialView
                 material={currentMaterial}
@@ -185,7 +245,6 @@ function LatihanExerciseContent() {
               />
             )}
 
-            {/* TAHAP 2: PENGERJAAN SOAL (SETELAH BELAJAR MATERI SELESAI) */}
             {stage === "EXERCISES" && currentExercise && (
               <>
                 {!isCameraExercise ? (
@@ -208,6 +267,12 @@ function LatihanExerciseContent() {
           </>
         )}
       </div>
+
+      <ExitConfirmModal
+        open={showExitModal}
+        onCancel={() => setShowExitModal(false)}
+        onConfirm={handleConfirmExit}
+      />
     </main>
   );
 }
