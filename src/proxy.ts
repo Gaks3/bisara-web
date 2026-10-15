@@ -4,28 +4,23 @@ import type { NextRequest } from "next/server";
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Check for session cookies — better-auth may use either name variant
+  // Check for session cookies — better-auth uses better-auth.session_token (or __Secure- prefix on HTTPS)
   const hasSession =
     request.cookies.has("better-auth.session_token") ||
+    request.cookies.has("__Secure-better-auth.session_token") ||
     request.cookies.has("auth.session_token") ||
     request.cookies.has("session_token");
 
   // Public/auth routes
   const isAuthRoute = pathname === "/login" || pathname === "/register";
-  const isLandingRoute = pathname === "/";
   const isProtectedRoute =
     pathname.startsWith("/home") ||
     pathname.startsWith("/belajar") ||
     pathname.startsWith("/profile");
 
-  // If user is already authenticated and visits login or landing, redirect to /home
+  // If user is already authenticated and visits login or register, redirect to /home
   if (hasSession && isAuthRoute) {
     return NextResponse.redirect(new URL("/home", request.url));
-  }
-
-  // If user is NOT authenticated and visits landing route, redirect to /login or allow landing
-  if (!hasSession && !isLandingRoute) {
-    return NextResponse.redirect(new URL("/login", request.url));
   }
 
   // If user is not authenticated and visits protected route, redirect to /login

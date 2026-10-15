@@ -107,11 +107,7 @@ export const CameraExercise = ({
     ) {
       setDetectionLocked(true);
     }
-  }, [
-    detectionStarted,
-    detectionLocked,
-    detection.bufferProgress,
-  ]);
+  }, [detectionStarted, detectionLocked, detection.bufferProgress]);
 
   const startCamera = async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -181,8 +177,6 @@ export const CameraExercise = ({
   const targetWord =
     exercise.cvConfig?.targetSign?.code || exercise.sign?.code || "A";
   const threshold = exercise.cvConfig?.confidenceThreshold || 0.5;
-
-  console.log(exercise.cvConfig?.targetSign?.code)
 
   // Cek apakah deteksi sudah benar (terverifikasi sukses dan bukan idle)
   const isCorrect =
@@ -401,7 +395,7 @@ export const CameraExercise = ({
       <div className="rounded-2xl border border-orange-100 bg-orange-50/60 p-3.5 text-xs">
         <p className="font-bold text-slate-800">
           Target Gerakan:{" "}
-          <span className="text-[#F66750] text-sm font-extrabold">
+          <span className="text-[#F66750] text-sm font-extrabold capitalize">
             {targetWord}
           </span>
         </p>
@@ -471,7 +465,6 @@ export const CameraExercise = ({
               )}
 
             {/* Tombol / Box Mengulang ketika salah di dalam box kamera (hanya tampil jika salah & belum benar) */}
-            
 
             <button
               type="button"

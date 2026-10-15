@@ -1,15 +1,19 @@
+// src/hooks/useBisindoDetector.ts
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type * as ortTypes from "onnxruntime-web";
-import {
-  FilesetResolver,
-  HandLandmarker,
-  PoseLandmarker,
-} from "@mediapipe/tasks-vision";
+import type { Results as HolisticResults } from "@mediapipe/holistic";
 
 const SEQUENCE_LENGTH = 30;
 const FEATURE_SIZE = 258; // 33*4 (Pose) + 21*3 (Left Hand) + 21*3 (Right Hand)
+
+/**
+ * Ubah ke `true` jika di script Python Anda menggunakan `cv2.flip(frame, 1)`
+ * SEBELUM memanggil `holistic.process(frame)`.
+ * Ubah ke `false` jika di Python Anda TIDAK melakukan `cv2.flip` sebelum `holistic.process()`.
+ */
+const PYTHON_USED_CV2_FLIP = true;
 
 interface ClassesConfig {
   classes: string[];
@@ -22,7 +26,7 @@ export interface DetectionResult {
   label: string;
   confidence: number;
   probabilities: Record<string, number>;
-  bufferProgress: number; // 0 - 30 frame
+  bufferProgress: number;
 }
 
 function softmax(logits: Float32Array | number[]): number[] {
@@ -31,6 +35,106 @@ function softmax(logits: Float32Array | number[]): number[] {
   const exps = arr.map((x) => Math.exp(x - maxLogit));
   const sumExps = exps.reduce((a, b) => a + b, 0);
   return exps.map((x) => x / sumExps);
+}
+
+/**
+ * Ekstraksi 258 fitur identik dengan np.concatenate([pose, lh, rh]) di Python MediaPipe Holistic
+ */
+function extractHolisticKeypoints(results: HolisticResults): number[] {
+  // 1. Pose: 33 landmarks * 4 (x, y, z, visibility) = 132
+  const pose = new Array<number>(132).fill(0);
+  if (results.poseLandmarks) {
+    results.poseLandmarks.forEach((lm, i) => {
+      const offset = i * 4;
+      pose[offset] = lm.x;
+      pose[offset + 1] = lm.y;
+      pose[offset + 2] = lm.z;
+      pose[offset + 3] = lm.visibility ?? 0;
+    });
+  }
+
+  // 2. Left Hand: 21 landmarks * 3 (x, y, z) = 63
+  const lh = new Array<number>(63).fill(0);
+  if (results.leftHandLandmarks) {
+    results.leftHandLandmarks.forEach((lm, i) => {
+      const offset = i * 3;
+      lh[offset] = lm.x;
+      lh[offset + 1] = lm.y;
+      lh[offset + 2] = lm.z;
+    });
+  }
+
+  // 3. Right Hand: 21 landmarks * 3 (x, y, z) = 63
+  const rh = new Array<number>(63).fill(0);
+  if (results.rightHandLandmarks) {
+    results.rightHandLandmarks.forEach((lm, i) => {
+      const offset = i * 3;
+      rh[offset] = lm.x;
+      rh[offset + 1] = lm.y;
+      rh[offset + 2] = lm.z;
+    });
+  }
+
+  return [...pose, ...lh, ...rh];
+}
+
+/**
+ * Memuat ONNX Runtime Web secara tangguh.
+ * Jika Webpack dynamic chunk gagal (ChunkLoadError), beralih memuat /wasm/ort.min.js via DOM script.
+ */
+async function loadOnnxRuntime(): Promise<typeof ortTypes> {
+  if (typeof window !== "undefined" && (window as unknown as { ort?: typeof ortTypes }).ort) {
+    return (window as unknown as { ort: typeof ortTypes }).ort;
+  }
+
+  // 1. Coba import dari onnxruntime-web
+  try {
+    const mod = await import("onnxruntime-web");
+    if (mod && mod.InferenceSession) return mod;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((mod as any)?.default?.InferenceSession) return (mod as any).default;
+  } catch (bundlerErr) {
+    console.warn("Webpack dynamic import onnxruntime-web gagal, beralih ke script tag loader:", bundlerErr);
+  }
+
+  // 2. Fallback: Muat /wasm/ort.min.js via DOM script tag
+  if (typeof window !== "undefined") {
+    await new Promise<void>((resolve, reject) => {
+      const existing = document.querySelector('script[data-ort="true"]') as HTMLScriptElement | null;
+      if (existing) {
+        if ((window as unknown as { ort?: typeof ortTypes }).ort) {
+          resolve();
+          return;
+        }
+        existing.addEventListener("load", () => resolve());
+        existing.addEventListener("error", () => reject(new Error("Gagal memuat skrip ORT lokal")));
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.dataset.ort = "true";
+      script.src = "/wasm/ort.min.js";
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => {
+        // Fallback CDN jika /wasm/ort.min.js bermasalah
+        const cdn = document.createElement("script");
+        cdn.dataset.ort = "true";
+        cdn.src = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.min.js";
+        cdn.async = true;
+        cdn.onload = () => resolve();
+        cdn.onerror = (e) => reject(new Error("Gagal mengunduh onnxruntime-web dari lokal maupun CDN: " + String(e)));
+        document.head.appendChild(cdn);
+      };
+      document.head.appendChild(script);
+    });
+
+    if ((window as unknown as { ort?: typeof ortTypes }).ort) {
+      return (window as unknown as { ort: typeof ortTypes }).ort;
+    }
+  }
+
+  throw new Error("Gagal menginisialisasi ONNX Runtime Web.");
 }
 
 export function useBisindoDetector(
@@ -49,12 +153,14 @@ export function useBisindoDetector(
 
   const ortRef = useRef<typeof ortTypes | null>(null);
   const sessionRef = useRef<ortTypes.InferenceSession | null>(null);
-  const poseLandmarkerRef = useRef<PoseLandmarker | null>(null);
-  const handLandmarkerRef = useRef<HandLandmarker | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const holisticRef = useRef<any>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const classesRef = useRef<string[]>(["1", "A", "hari", "idle"]);
   const sequenceBufferRef = useRef<number[][]>([]);
   const rafIdRef = useRef<number | null>(null);
   const isInferringRef = useRef(false);
+  const isProcessingFrameRef = useRef(false);
 
   const resetDetection = useCallback(() => {
     sequenceBufferRef.current = [];
@@ -67,36 +173,82 @@ export function useBisindoDetector(
     });
   }, []);
 
-  // 1. Inisialisasi ONNX Runtime Web + MediaPipe + classes.json
-  const initModels = useCallback(async () => {
+  const runOnnxInference = useCallback(async () => {
+    const ort = ortRef.current;
+    const session = sessionRef.current;
     if (
-      sessionRef.current &&
-      poseLandmarkerRef.current &&
-      handLandmarkerRef.current
+      !ort ||
+      !session ||
+      sequenceBufferRef.current.length < SEQUENCE_LENGTH ||
+      isInferringRef.current
     ) {
       return;
     }
+
+    isInferringRef.current = true;
+    try {
+      const flatData = new Float32Array(SEQUENCE_LENGTH * FEATURE_SIZE);
+      for (let i = 0; i < SEQUENCE_LENGTH; i++) {
+        flatData.set(sequenceBufferRef.current[i], i * FEATURE_SIZE);
+      }
+
+      const inputTensor = new ort.Tensor("float32", flatData, [
+        1,
+        SEQUENCE_LENGTH,
+        FEATURE_SIZE,
+      ]);
+
+      const outputs = await session.run({
+        input_landmarks: inputTensor,
+      });
+
+      const logits = outputs.output_logits.data as Float32Array;
+      const probs = softmax(logits);
+
+      let maxIdx = 0;
+      for (let i = 1; i < probs.length; i++) {
+        if (probs[i] > probs[maxIdx]) maxIdx = i;
+      }
+
+      const classes = classesRef.current;
+      const probMap: Record<string, number> = {};
+      classes.forEach((cls, idx) => {
+        probMap[cls] = probs[idx] ?? 0;
+      });
+
+      setDetection({
+        label: classes[maxIdx] || "idle",
+        confidence: probs[maxIdx] || 0,
+        probabilities: probMap,
+        bufferProgress: SEQUENCE_LENGTH,
+      });
+    } catch (err) {
+      console.error("Kesalahan inferensi ONNX:", err);
+    } finally {
+      isInferringRef.current = false;
+    }
+  }, []);
+
+  const initModels = useCallback(async () => {
+    if (sessionRef.current && holisticRef.current) return;
 
     setIsModelLoading(true);
     setModelError(null);
 
     try {
-      // Load daftar kelas dari public/classes.json
+      // 1. Load classes.json
       const clsRes = await fetch("/classes.json");
       if (clsRes.ok) {
         const clsData: ClassesConfig = await clsRes.json();
         classesRef.current = clsData.classes;
       }
 
-      // Dynamic import onnxruntime-web agar hanya berjalan di sisi client
-      const ort = await import("onnxruntime-web");
+      // 2. Load ONNX Runtime Web (dengan fallback script loader)
+      const ort = await loadOnnxRuntime();
       ortRef.current = ort;
-
-      // Arahkan path file .wasm ke CDN sesuai versi yang terinstal
       ort.env.wasm.wasmPaths = "/wasm/";
       ort.env.wasm.numThreads = 1;
 
-      // PENTING: Muat bisindo_model.onnx beserta bobot eksternalnya bisindo_model.onnx.data
       const [modelBuffer, externalDataBuffer] = await Promise.all([
         fetch("/bisindo_model.onnx").then((r) => r.arrayBuffer()),
         fetch("/bisindo_model.onnx.data").then((r) => r.arrayBuffer()),
@@ -115,99 +267,88 @@ export function useBisindoDetector(
         },
       );
 
-      // Inisialisasi MediaPipe Pose & Hand Landmarker
-      const vision = await FilesetResolver.forVisionTasks(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm",
-      );
+      // 3. Load MediaPipe Holistic (identik dengan mp.solutions.holistic di Python)
+      let HolisticClass =
+        (typeof window !== "undefined" && (window as unknown as { Holistic?: unknown }).Holistic) ||
+        null;
 
-      const [poseLandmarker, handLandmarker] = await Promise.all([
-        PoseLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath:
-              "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
-            delegate: "GPU",
-          },
-          runningMode: "VIDEO",
-          numPoses: 1,
-        }),
-        HandLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath:
-              "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-            delegate: "GPU",
-          },
-          runningMode: "VIDEO",
-          numHands: 2,
-        }),
-      ]);
+      if (!HolisticClass) {
+        try {
+          const mpHolistic = await import("@mediapipe/holistic");
+          HolisticClass =
+            mpHolistic.Holistic ||
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (mpHolistic as any).default?.Holistic ||
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (window as any).Holistic;
+        } catch (e) {
+          console.warn("Gagal import @mediapipe/holistic via bundler, beralih ke CDN:", e);
+        }
+      }
 
-      poseLandmarkerRef.current = poseLandmarker;
-      handLandmarkerRef.current = handLandmarker;
+      if (!HolisticClass && typeof window !== "undefined") {
+        await new Promise<void>((resolve, reject) => {
+          const s = document.createElement("script");
+          s.src = "https://cdn.jsdelivr.net/npm/@mediapipe/holistic@0.5.1675471629/holistic.js";
+          s.crossOrigin = "anonymous";
+          s.onload = () => resolve();
+          s.onerror = () => reject(new Error("Gagal mengunduh MediaPipe Holistic dari CDN"));
+          document.head.appendChild(s);
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        HolisticClass = (window as any).Holistic;
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const holistic = new (HolisticClass as any)({
+        locateFile: (file: string) =>
+          `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`,
+      });
+
+      holistic.setOptions({
+        modelComplexity: 1,
+        smoothLandmarks: true,
+        enableSegmentation: false,
+        refineFaceLandmarks: false,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5,
+      });
+
+      holistic.onResults((results: HolisticResults) => {
+        const keypoints = extractHolisticKeypoints(results);
+        sequenceBufferRef.current.push(keypoints);
+        if (sequenceBufferRef.current.length > SEQUENCE_LENGTH) {
+          sequenceBufferRef.current.shift();
+        }
+
+        const count = sequenceBufferRef.current.length;
+        if (count < SEQUENCE_LENGTH) {
+          setDetection((prev) => ({ ...prev, bufferProgress: count }));
+        } else {
+          runOnnxInference();
+        }
+      });
+
+      await holistic.initialize();
+      holisticRef.current = holistic;
       setIsModelReady(true);
+
+      // Siapkan offscreen canvas jika perlu simulasi cv2.flip(frame, 1)
+      if (!canvasRef.current && typeof document !== "undefined") {
+        canvasRef.current = document.createElement("canvas");
+      }
     } catch (err) {
-      console.error("Gagal memuat model AI BISINDO:", err);
+      console.error("Gagal memuat Holistic / ONNX:", err);
       setModelError(
-        err instanceof Error ? err.message : "Gagal memuat model deteksi AI.",
+        err instanceof Error ? err.message : "Gagal memuat model AI.",
       );
     } finally {
       setIsModelLoading(false);
     }
-  }, []);
+  }, [runOnnxInference]);
 
-  // 2. Ekstraksi 258 fitur dari 1 frame video
-  const extract258Keypoints = useCallback(
-    (video: HTMLVideoElement, timestampMs: number): number[] => {
-      const poseResult = poseLandmarkerRef.current?.detectForVideo(
-        video,
-        timestampMs,
-      );
-      const handResult = handLandmarkerRef.current?.detectForVideo(
-        video,
-        timestampMs,
-      );
-
-      // Pose: 33 landmarks * 4 (x, y, z, visibility) = 132
-      const poseFeatures = new Array<number>(132).fill(0);
-      if (poseResult?.landmarks?.[0]) {
-        poseResult.landmarks[0].forEach((lm, idx) => {
-          const offset = idx * 4;
-          poseFeatures[offset] = lm.x;
-          poseFeatures[offset + 1] = lm.y;
-          poseFeatures[offset + 2] = lm.z;
-          poseFeatures[offset + 3] = lm.visibility ?? 0;
-        });
-      }
-
-      // Left Hand & Right Hand: masing-masing 21 landmarks * 3 (x, y, z) = 63
-      const leftHandFeatures = new Array<number>(63).fill(0);
-      const rightHandFeatures = new Array<number>(63).fill(0);
-
-      if (handResult?.landmarks && handResult?.handedness) {
-        handResult.handedness.forEach((handCategories, handIdx) => {
-          const categoryName = handCategories[0]?.categoryName; // "Left" atau "Right"
-          const landmarks = handResult.landmarks[handIdx];
-          if (!landmarks) return;
-
-          const targetArray =
-            categoryName === "Left" ? leftHandFeatures : rightHandFeatures;
-
-          landmarks.forEach((lm, lmIdx) => {
-            const offset = lmIdx * 3;
-            targetArray[offset] = lm.x;
-            targetArray[offset + 1] = lm.y;
-            targetArray[offset + 2] = lm.z;
-          });
-        });
-      }
-
-      return [...poseFeatures, ...leftHandFeatures, ...rightHandFeatures];
-    },
-    [],
-  );
-
-  // 3. Loop deteksi real-time per frame (hanya jalan saat isActive dan model sudah siap)
   useEffect(() => {
-    if (!isActive || !isModelReady) {
+    if (!isActive) {
       sequenceBufferRef.current = [];
       if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
       return;
@@ -216,109 +357,72 @@ export function useBisindoDetector(
     let isCancelled = false;
     let lastVideoTime = -1;
 
-    const detectFrame = async () => {
-      if (isCancelled) return;
+    initModels().then(() => {
+      const processLoop = async () => {
+        if (isCancelled) return;
 
-      const video = videoRef.current;
-      const ort = ortRef.current;
-      const session = sessionRef.current;
+        const video = videoRef.current;
+        const holistic = holisticRef.current;
 
-      if (
-        video &&
-        video.readyState >= 2 &&
-        ort &&
-        session &&
-        poseLandmarkerRef.current &&
-        handLandmarkerRef.current &&
-        video.currentTime !== lastVideoTime
-      ) {
-        lastVideoTime = video.currentTime;
-        const nowMs = performance.now();
-
-        // Ekstrak 258 titik koordinat dan masukkan ke sliding window 30 frame
-        const keypoints = extract258Keypoints(video, nowMs);
-        sequenceBufferRef.current.push(keypoints);
-        if (sequenceBufferRef.current.length > SEQUENCE_LENGTH) {
-          sequenceBufferRef.current.shift();
-        }
-
-        const currentBufferLength = sequenceBufferRef.current.length;
-
-        // Jalankan inferensi LSTM ketika buffer sudah mencapai 30 frame
         if (
-          currentBufferLength === SEQUENCE_LENGTH &&
-          !isInferringRef.current
+          video &&
+          video.readyState >= 2 &&
+          holistic &&
+          !isProcessingFrameRef.current &&
+          video.currentTime !== lastVideoTime
         ) {
-          isInferringRef.current = true;
+          lastVideoTime = video.currentTime;
+          isProcessingFrameRef.current = true;
+
           try {
-            const flatData = new Float32Array(SEQUENCE_LENGTH * FEATURE_SIZE);
-            for (let i = 0; i < SEQUENCE_LENGTH; i++) {
-              flatData.set(sequenceBufferRef.current[i], i * FEATURE_SIZE);
+            if (PYTHON_USED_CV2_FLIP && canvasRef.current) {
+              // Membalik piksel video secara horizontal sama seperti cv2.flip(frame, 1)
+              const canvas = canvasRef.current;
+              canvas.width = video.videoWidth || 640;
+              canvas.height = video.videoHeight || 480;
+              const ctx = canvas.getContext("2d");
+              if (ctx) {
+                ctx.save();
+                ctx.scale(-1, 1);
+                ctx.drawImage(canvas, 0, 0); // clear
+                ctx.drawImage(
+                  video,
+                  -canvas.width,
+                  0,
+                  canvas.width,
+                  canvas.height,
+                );
+                ctx.restore();
+                await holistic.send({ image: canvas });
+              }
+            } else {
+              await holistic.send({ image: video });
             }
-
-            // Buat tensor [1, 30, 258] sesuai input_landmarks
-            const inputTensor = new ort.Tensor("float32", flatData, [
-              1,
-              SEQUENCE_LENGTH,
-              FEATURE_SIZE,
-            ]);
-
-            const outputs = await session.run({
-              input_landmarks: inputTensor,
-            });
-
-            const logits = outputs.output_logits.data as Float32Array;
-            const probs = softmax(logits);
-
-            let maxIdx = 0;
-            for (let i = 1; i < probs.length; i++) {
-              if (probs[i] > probs[maxIdx]) maxIdx = i;
-            }
-
-            const classes = classesRef.current;
-            const probMap: Record<string, number> = {};
-            classes.forEach((cls, idx) => {
-              probMap[cls] = probs[idx] ?? 0;
-            });
-
-            if (!isCancelled) {
-              setDetection({
-                label: classes[maxIdx] || "idle",
-                confidence: probs[maxIdx] || 0,
-                probabilities: probMap,
-                bufferProgress: SEQUENCE_LENGTH,
-              });
-            }
-          } catch (err) {
-            console.error("Kesalahan saat inferensi ONNX LSTM:", err);
+          } catch (e) {
+            console.error("Holistic frame error:", e);
           } finally {
-            isInferringRef.current = false;
+            isProcessingFrameRef.current = false;
           }
-        } else if (currentBufferLength < SEQUENCE_LENGTH) {
-          setDetection((prev) => ({
-            ...prev,
-            bufferProgress: currentBufferLength,
-          }));
         }
-      }
 
-      rafIdRef.current = requestAnimationFrame(detectFrame);
-    };
+        rafIdRef.current = requestAnimationFrame(processLoop);
+      };
 
-    rafIdRef.current = requestAnimationFrame(detectFrame);
+      rafIdRef.current = requestAnimationFrame(processLoop);
+    });
 
     return () => {
       isCancelled = true;
       if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
     };
-  }, [isActive, isModelReady, extract258Keypoints, videoRef]);
+  }, [isActive, initModels, videoRef]);
 
   return {
     isModelLoading,
     isModelReady,
     modelError,
-    detection,
     resetDetection,
+    detection,
     /** Memuat model secara manual (akan di-skip jika sudah dimuat) */
     loadModels: initModels,
   };
