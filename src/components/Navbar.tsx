@@ -53,7 +53,7 @@ const Navbar = () => {
             height={24}
             className="h-6 w-6 md:h-7 md:w-7"
           />
-          Aksesibelitas
+          Aksesibilitas
         </button>
       </nav>
     </header>

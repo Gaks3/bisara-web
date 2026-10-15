@@ -55,8 +55,8 @@ export const McqExercise = ({
         durationMs: 3800,
         selectedOption: chosen?.id,
         feedback: isCorrect
-          ? "Jawaban tepat! Pemahaman gerakan isyarat Anda sangat akurat."
-          : "Jawaban belum sesuai. Perhatikan kembali bentuk isyarat tangan.",
+          ? "Jawaban tepat!"
+          : "Jawaban belum sesuai.",
       });
 
       if (isCorrect) {
@@ -116,17 +116,6 @@ export const McqExercise = ({
           className="h-44 w-auto object-contain select-none"
           priority
         />
-
-        {mcqStatus === "correct" && (
-          <>
-            <span className="absolute left-[18%] top-2 text-amber-400 animate-ping">
-              <Sparkles size={22} />
-            </span>
-            <span className="absolute right-[18%] top-6 text-emerald-400 animate-ping">
-              <PartyPopper size={22} />
-            </span>
-          </>
-        )}
       </div>
 
       {/* Feedback Alert */}
@@ -155,9 +144,9 @@ export const McqExercise = ({
             "border-slate-200 bg-white text-slate-700 hover:border-orange-300 hover:bg-orange-50/50";
           if (isSelected) {
             if (mcqStatus === "correct") {
-              style = "border-emerald-500 bg-emerald-500 text-white shadow-md shadow-emerald-500/30";
+              style = "border-emerald-500 bg-emerald-500 text-white";
             } else if (mcqStatus === "wrong") {
-              style = "border-red-500 bg-red-500 text-white shadow-md shadow-red-500/30";
+              style = "border-red-500 bg-red-500 text-white";
             } else {
               style = "border-[#F66750] bg-orange-50 text-[#F66750] ring-2 ring-[#F66750]/30 font-bold";
             }
@@ -190,7 +179,7 @@ export const McqExercise = ({
             type="button"
             disabled={selectedOption === null || submitting}
             onClick={handleVerify}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold text-white shadow-md shadow-orange-500/25 transition enabled:hover:brightness-105 disabled:opacity-50 md:text-sm"
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold text-white md:text-sm"
             style={{ background: GRADIENT_BRAND }}
           >
             {submitting ? (
@@ -211,7 +200,7 @@ export const McqExercise = ({
           <button
             type="button"
             onClick={onNext}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 text-xs font-bold text-white shadow-md shadow-emerald-500/30 transition hover:brightness-105 md:text-sm"
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 text-xs font-bold text-white md:text-sm"
           >
             Lanjut ke Soal Berikutnya
             <ChevronRight size={16} />
