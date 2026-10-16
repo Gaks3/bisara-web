@@ -388,31 +388,6 @@ export const CameraExercise = ({
 
       {/* Guidance Card with Reference Media from backend */}
       <div className="flex flex-col sm:flex-row gap-3.5 rounded-2xl border border-orange-100 bg-orange-50/60 p-3.5 text-xs">
-        {media.hasMedia && (
-          <div className="relative shrink-0 w-full sm:w-28 sm:h-28 aspect-video sm:aspect-square overflow-hidden rounded-xl bg-black flex items-center justify-center border border-orange-200">
-            {media.isVideo ? (
-              <video
-                key={media.url}
-                src={media.url}
-                poster={media.thumbnail || undefined}
-                controls
-                playsInline
-                loop
-                muted
-                className="h-full w-full object-contain"
-              />
-            ) : (
-              <Image
-                src={media.url}
-                alt={targetWord}
-                width={112}
-                height={112}
-                unoptimized
-                className="h-full w-full object-contain"
-              />
-            )}
-          </div>
-        )}
         <div className="flex flex-col justify-center flex-1">
           <p className="font-bold text-slate-800">
             Target Gerakan:{" "}
@@ -424,10 +399,6 @@ export const CameraExercise = ({
                 ({targetMeaning})
               </span>
             )}
-          </p>
-          <p className="mt-1 text-slate-600 leading-relaxed">
-            {exercise.instruction ||
-              "Peragakan isyarat di depan kamera hingga mencapai 30 frame berurutan."}
           </p>
         </div>
       </div>
