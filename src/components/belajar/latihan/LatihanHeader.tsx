@@ -42,7 +42,7 @@ export const LatihanHeader = ({
               : `Latihan Soal ${exerciseIndex + 1} dari ${totalExercises}`}
           </span>
           <span className="text-[#F66750]">
-            {stage === "LEARNING_MATERIALS" ? "Tahap 1: Belajar" : "Tahap 2: Soal"}
+            {stage === "LEARNING_MATERIALS" ? "Belajar" : " Soal"}
           </span>
         </div>
         <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
@@ -56,7 +56,7 @@ export const LatihanHeader = ({
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1 rounded-xl bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-600 border border-amber-200">
+      <div className="flex shrink-0 items-center gap-1 rounded-xl bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-600 ">
         <Sparkles size={14} />
         <span>+{totalXpEarned} XP</span>
       </div>

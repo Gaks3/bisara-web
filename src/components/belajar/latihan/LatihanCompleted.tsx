@@ -1,6 +1,7 @@
 import { ChevronRight, Flame, Sparkles, Trophy } from "lucide-react";
 import { LessonDetailData } from "@/lib/api-service";
 import { GRADIENT_BRAND } from "./types";
+import Image from "next/image";
 
 interface LatihanCompletedProps {
   lesson: LessonDetailData;
@@ -42,12 +43,18 @@ export const LatihanCompleted = ({
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 rounded-2xl bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-700 border border-amber-200">
+          <div className="flex items-center gap-2 rounded-2xl bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-700 ">
             <Sparkles size={18} className="text-amber-500" />
             +{totalXpEarned || 75} XP
           </div>
-          <div className="flex items-center gap-2 rounded-2xl bg-orange-50 px-4 py-2.5 text-sm font-bold text-[#F66750] border border-orange-200">
-            <Flame size={18} className="text-[#F66750]" />
+          <div className="flex items-center gap-2 rounded-2xl bg-orange-50 px-4 py-2.5 text-sm font-bold text-[#F66750] ">
+              <Image
+                src="/streak.svg"
+                alt="Streak"
+                width={16}
+                height={16}
+                className="object-contain"
+              />
             Streak
           </div>
         </div>
