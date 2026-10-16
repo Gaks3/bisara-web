@@ -1,5 +1,6 @@
 // src/components/belajar/latihan/CameraExercise.tsx
 import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import {
   AlertCircle,
   Camera,
@@ -15,6 +16,7 @@ import {
 import { apiService, AttemptData, ExerciseItem } from "@/lib/api-service";
 import { useBisindoDetector } from "@/hooks/useBisindoDetector";
 import { CameraStatus, GRADIENT_BRAND } from "./types";
+import { getExerciseMedia } from "../utils";
 
 const COUNTDOWN_SECONDS = 3;
 
@@ -176,7 +178,10 @@ export const CameraExercise = ({
 
   const targetWord =
     exercise.cvConfig?.targetSign?.code || exercise.sign?.code || "A";
+  const targetMeaning =
+    exercise.cvConfig?.targetSign?.meaning || exercise.sign?.meaning;
   const threshold = exercise.cvConfig?.confidenceThreshold || 0.5;
+  const media = getExerciseMedia(exercise);
 
   // Cek apakah deteksi sudah benar (terverifikasi sukses dan bukan idle)
   const isCorrect =
@@ -381,18 +386,50 @@ export const CameraExercise = ({
   return (
     <section className="flex flex-col gap-4 rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
 
-      {/* Guidance Card */}
-      <div className="rounded-2xl border border-orange-100 bg-orange-50/60 p-3.5 text-xs">
-        <p className="font-bold text-slate-800">
-          Target Gerakan:{" "}
-          <span className="text-[#F66750] text-sm font-extrabold capitalize">
-            {targetWord}
-          </span>
-        </p>
-        <p className="mt-1 text-slate-600 leading-relaxed">
-          {exercise.instruction ||
-            "Peragakan isyarat di depan kamera hingga mencapai 30 frame berurutan."}
-        </p>
+      {/* Guidance Card with Reference Media from backend */}
+      <div className="flex flex-col sm:flex-row gap-3.5 rounded-2xl border border-orange-100 bg-orange-50/60 p-3.5 text-xs">
+        {media.hasMedia && (
+          <div className="relative shrink-0 w-full sm:w-28 sm:h-28 aspect-video sm:aspect-square overflow-hidden rounded-xl bg-black flex items-center justify-center border border-orange-200">
+            {media.isVideo ? (
+              <video
+                key={media.url}
+                src={media.url}
+                poster={media.thumbnail || undefined}
+                controls
+                playsInline
+                loop
+                muted
+                className="h-full w-full object-contain"
+              />
+            ) : (
+              <Image
+                src={media.url}
+                alt={targetWord}
+                width={112}
+                height={112}
+                unoptimized
+                className="h-full w-full object-contain"
+              />
+            )}
+          </div>
+        )}
+        <div className="flex flex-col justify-center flex-1">
+          <p className="font-bold text-slate-800">
+            Target Gerakan:{" "}
+            <span className="text-[#F66750] text-sm font-extrabold capitalize">
+              {targetWord}
+            </span>
+            {targetMeaning && (
+              <span className="ml-1.5 font-normal text-slate-500">
+                ({targetMeaning})
+              </span>
+            )}
+          </p>
+          <p className="mt-1 text-slate-600 leading-relaxed">
+            {exercise.instruction ||
+              "Peragakan isyarat di depan kamera hingga mencapai 30 frame berurutan."}
+          </p>
+        </div>
       </div>
 
       {/* Camera Viewfinder */}

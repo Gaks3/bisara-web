@@ -3,6 +3,7 @@ import Image from "next/image";
 import { BookOpen, ChevronLeft, ChevronRight } from "lucide-react";
 import { LessonMaterial } from "@/lib/api-service";
 import { GRADIENT_BRAND } from "./types";
+import { getMaterialMedia } from "../utils";
 
 interface MaterialViewProps {
   material: LessonMaterial;
@@ -32,9 +33,7 @@ export const MaterialView = ({
     }
   };
 
-  const isVideo =
-    material.type === "VIDEO" ||
-    !!material.mediaUrl?.match(/\.(mp4|webm|ogg)($|\?)/i);
+  const media = getMaterialMedia(material);
 
   return (
     <section className="flex flex-col gap-4 rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
@@ -76,12 +75,14 @@ export const MaterialView = ({
       )}
 
       {/* Media Preview: Video vs Image Flashcard */}
-      {isVideo ? (
+      {media.isVideo ? (
         <div className="flex flex-col gap-2">
           <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black flex items-center justify-center shadow-inner">
             <video
+              key={media.url}
               ref={materialVideoRef}
-              src={material.mediaUrl || "/bannervidio.png"}
+              src={media.url}
+              poster={media.thumbnail || undefined}
               controls
               playsInline
               className="h-full w-full rounded-2xl object-contain"
@@ -104,11 +105,11 @@ export const MaterialView = ({
       ) : (
         <div className="relative overflow-hidden rounded-2xl bg-slate-50 flex items-center justify-center py-2 border border-slate-100">
           <Image
-            src={material.mediaUrl || "/bannerflash.png"}
-            alt={material.title || "Flashcard isyarat"}
+            src={media.url}
+            alt={material.title || material.sign?.word || "Flashcard isyarat"}
             width={500}
             height={320}
-            unoptimized={!!material.mediaUrl?.startsWith("http")}
+            unoptimized
             className="h-56 w-auto object-contain rounded-2xl select-none"
             priority
           />

@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { apiService, ExerciseItem } from "@/lib/api-service";
 import { GRADIENT_BRAND } from "./types";
+import { getExerciseMedia, resolveMediaUrl } from "../utils";
 
 interface McqExerciseProps {
   exercise: ExerciseItem;
@@ -24,9 +25,13 @@ export const McqExercise = ({
   onNext,
 }: McqExerciseProps) => {
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
-  const [mcqStatus, setMcqStatus] = useState<"idle" | "correct" | "wrong">("idle");
+  const [mcqStatus, setMcqStatus] = useState<"idle" | "correct" | "wrong">(
+    "idle",
+  );
   const [mcqFeedback, setMcqFeedback] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const media = getExerciseMedia(exercise);
 
   // Reset local state when exercise changes
   useEffect(() => {
@@ -54,9 +59,7 @@ export const McqExercise = ({
         accuracy: isCorrect ? 0.95 : 0.4,
         durationMs: 3800,
         selectedOption: chosen?.id,
-        feedback: isCorrect
-          ? "Jawaban tepat!"
-          : "Jawaban belum sesuai.",
+        feedback: isCorrect ? "Jawaban tepat!" : "Jawaban belum sesuai.",
       });
 
       if (isCorrect) {
@@ -65,7 +68,9 @@ export const McqExercise = ({
         setMcqFeedback(res.feedback);
       } else {
         setMcqStatus("wrong");
-        setMcqFeedback(res.feedback || "Jawaban belum tepat, silakan coba lagi.");
+        setMcqFeedback(
+          res.feedback || "Jawaban belum tepat, silakan coba lagi.",
+        );
       }
     } catch (err) {
       console.warn("MCQ Attempt error:", err);
@@ -99,32 +104,44 @@ export const McqExercise = ({
           {exercise.prompt}
         </h2>
         {exercise.instruction && (
-          <p className="mt-1 text-xs text-slate-500">
-            {exercise.instruction}
-          </p>
+          <p className="mt-1 text-xs text-slate-500">{exercise.instruction}</p>
         )}
       </div>
 
-      {/* Demonstration Image */}
-      <div className="relative flex justify-center py-3 bg-slate-50 rounded-2xl border border-slate-100">
-        <Image
-          src={exercise.mediaUrl || "/Cepat1.png"}
-          alt="Demonstrasi Isyarat"
-          width={240}
-          height={240}
-          unoptimized={!!exercise.mediaUrl?.startsWith("http")}
-          className="h-44 w-auto object-contain select-none"
-          priority
-        />
+      {/* Demonstration Media: Video vs Image from backend */}
+      <div className="relative flex justify-center py-3 bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
+        {media.isVideo ? (
+          <div className="relative aspect-video w-full max-h-56 bg-black rounded-xl overflow-hidden flex items-center justify-center">
+            <video
+              key={media.url}
+              src={media.url}
+              poster={media.thumbnail || undefined}
+              controls
+              playsInline
+              autoPlay
+              loop
+              muted
+              className="h-full w-full object-contain"
+            />
+          </div>
+        ) : (
+          <Image
+            src={media.url}
+            alt={exercise.prompt || "Demonstrasi Isyarat"}
+            width={320}
+            height={240}
+            unoptimized
+            className="h-44 w-auto object-contain select-none rounded-xl"
+            priority
+          />
+        )}
       </div>
 
       {/* Feedback Alert */}
       {mcqFeedback && (
         <div
-          className={`flex items-center gap-2 rounded-2xl  text-xs font-semibold ${
-            mcqStatus === "correct"
-              ? ""
-              : ""
+          className={`flex items-center gap-2 rounded-2xl text-xs font-semibold ${
+            mcqStatus === "correct" ? "text-emerald-700" : "text-red-600"
           }`}
         >
           {mcqStatus === "correct" ? (
@@ -140,15 +157,19 @@ export const McqExercise = ({
       <div className="grid grid-cols-2 gap-2.5">
         {exercise.options?.map((opt, i) => {
           const isSelected = selectedOption === i;
-          let style =
-            "border bg-white text-slate-700 hover:bg-orange-50/50";
+          // const optMediaUrl = opt.sign?.media?.[0]?.url
+          //   ? resolveMediaUrl(opt.sign.media[0].url)
+          //   : null;
+
+          let style = "border bg-white text-slate-700 hover:bg-orange-50/50";
           if (isSelected) {
             if (mcqStatus === "correct") {
               style = "border-emerald-500 bg-emerald-500 text-white";
             } else if (mcqStatus === "wrong") {
               style = "border-red-500 bg-red-500 text-white";
             } else {
-              style = "border-[#F66750] bg-orange-50 text-[#F66750] ring-2 ring-[#F66750]/30 font-bold";
+              style =
+                "border-[#F66750] bg-orange-50 text-[#F66750] ring-2 ring-[#F66750]/30 font-bold";
             }
           } else if (mcqStatus === "correct") {
             style = "border-slate-200 bg-white text-slate-400 opacity-60";
@@ -164,9 +185,23 @@ export const McqExercise = ({
                 setMcqStatus("idle");
                 setMcqFeedback(null);
               }}
-              className={`flex h-12 items-center justify-center rounded-xl border px-3 text-center text-xs font-semibold transition md:text-sm ${style}`}
+              className={`flex h-12 items-center justify-center gap-2 rounded-xl border px-3 text-center text-xs font-semibold transition md:text-sm ${style}`}
             >
-              {opt.label || opt.sign?.word || "Pilihan"}
+              {/* {optMediaUrl && (
+                <div className="relative h-7 w-7 shrink-0 overflow-hidden rounded-md bg-slate-100">
+                  <Image
+                    src={optMediaUrl}
+                    alt={opt.label || opt.sign?.word || ""}
+                    width={28}
+                    height={28}
+                    unoptimized
+                    className="h-full w-full object-contain"
+                  />
+                </div>
+              )} */}
+              <span className="truncate">
+                {opt.label || opt.sign?.word || "Pilihan"}
+              </span>
             </button>
           );
         })}

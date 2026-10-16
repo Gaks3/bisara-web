@@ -14,6 +14,7 @@ import {
   Trophy,
 } from "lucide-react";
 import { apiService, ExerciseItem } from "@/lib/api-service";
+import { resolveMediaUrl } from "./belajar/utils";
 
 const GRADIENT_BRAND = "linear-gradient(135deg, #F66750 0%, #F97316 100%)";
 
@@ -77,7 +78,10 @@ const KuisCepat = ({ exercises, onComplete }: KuisCepatProps) => {
           .filter((ex) => ex.type !== "GESTURE_PRACTICE" && ex.options && ex.options.length > 0)
           .map((ex, idx) => ({
             id: ex.id,
-            image: ex.mediaUrl || (idx === 0 ? "/Cepat1.png" : idx === 1 ? "/cepat2.png" : "/cepat3.png"),
+            image: resolveMediaUrl(
+              ex.mediaUrl,
+              idx === 0 ? "/Cepat1.png" : idx === 1 ? "/cepat2.png" : "/cepat3.png"
+            ),
             prompt: ex.prompt || "Apakah arti gestur isyarat berikut ini?",
             instruction: ex.instruction || "Pilih opsi jawaban yang benar.",
             options: ex.options.map((opt) => ({
@@ -277,7 +281,7 @@ const KuisCepat = ({ exercises, onComplete }: KuisCepatProps) => {
               width={200}
               height={200}
               priority={index === 0}
-              unoptimized={!!currentQ.image?.startsWith("http")}
+              unoptimized
               className="h-36 w-auto select-none object-contain md:h-44"
             />
 
