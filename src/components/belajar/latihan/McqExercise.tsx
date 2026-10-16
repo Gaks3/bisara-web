@@ -168,8 +168,7 @@ export const McqExercise = ({
             } else if (mcqStatus === "wrong") {
               style = "border-red-500 bg-red-500 text-white";
             } else {
-              style =
-                "border-[#F66750] bg-orange-50 text-[#F66750] ring-2 ring-[#F66750]/30 font-bold";
+              style = " bg-orange-50 text-[#F66750]  font-bold";
             }
           } else if (mcqStatus === "correct") {
             style = "border-slate-200 bg-white text-slate-400 opacity-60";

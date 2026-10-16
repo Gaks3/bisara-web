@@ -323,14 +323,20 @@ const Home = () => {
                     className="flex items-center gap-3 rounded-2xl p-3 text-white ring-2 ring-[#FFBC6A]"
                     style={{ background: GRADIENT_ORANGE }}
                   >
-                    <div
-                      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl p-1"
-                      style={{ background: GRADIENT_YELLOW }}
-                    >
-                      <Flame size={26} className="text-red-500 fill-red-500" />
-                    </div>
+                <div
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl p-1"
+                  style={{ background: GRADIENT_YELLOW }}
+                >
+                  <Image
+                    src="/streak.svg"
+                    alt="Streak"
+                    width={22}
+                    height={22}
+                    className="object-contain"
+                  />
+                </div>
                     <div>
-                      <p className="text-lg font-bold leading-tight">
+                      <p className="text-[15px] font-bold leading-tight">
                         {dashboard.streak?.currentDays || 0} Hari
                       </p>
                       <p className="text-[10px] text-white/90">Streak Belajar</p>
@@ -386,7 +392,13 @@ const Home = () => {
                         )}
                         {day.isToday && (
                           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-100 text-[#F66750] ring-2 ring-orange-400">
-                            <Flame size={16} fill="currentColor" />
+                              <Image
+    src="/streak.svg"
+    alt="Streak"
+    width={16}
+    height={16}
+    className="object-contain"
+  />
                             <span className="sr-only">Hari ini</span>
                           </span>
                         )}
@@ -555,9 +567,9 @@ const Home = () => {
                 {/* Link ke Pusat Belajar */}
                 <Link
                   href="/belajar"
-                  className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-[#F66750]/40 bg-orange-50/50 py-3 text-xs font-bold text-[#F66750] transition hover:bg-orange-50"
+                  className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-slate bg-orange-50/50 py-3 text-xs font-bold text-[#F66750] transition hover:bg-orange-50"
                 >
-                  Jelajahi Semua Modul di Pusat Belajar
+                  Jelajahi Modul di Pusat Belajar
                 </Link>
               </section>
 
