@@ -6,8 +6,8 @@ export function proxy(request: NextRequest) {
 
   // Check for session cookies — better-auth uses better-auth.session_token (or __Secure- prefix on HTTPS)
   const hasSession =
-    request.cookies.has("better-auth.session_token") ||
-    request.cookies.has("__Secure-better-auth.session_token") ||
+    request.cookies.has("auth.session_token") ||
+    request.cookies.has("__Secure-auth.session_token") ||
     request.cookies.has("auth.session_token") ||
     request.cookies.has("session_token");
 
