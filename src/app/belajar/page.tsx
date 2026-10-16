@@ -7,7 +7,6 @@ import Navbar from "@/components/Navbar";
 import {
   BelajarHero,
   BelajarSkeleton,
-  getCompletedLevelsFromStorage,
   isLevelDone,
   lessonDone,
   LevelMap,
@@ -23,7 +22,6 @@ const BelajarPage = () => {
   const router = useRouter();
   const [catalog, setCatalog] = useState<LearningCatalogData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [completedLevels, setCompletedLevels] = useState<number[]>([]);
 
   /* Load katalog */
   useEffect(() => {
@@ -44,20 +42,17 @@ const BelajarPage = () => {
     };
   }, []);
 
-  /* Ambil level selesai dari localStorage, validasi sequential */
-  useEffect(() => {
-    setCompletedLevels(getCompletedLevelsFromStorage());
-  }, []);
-
-  /* Status tiap level: urut. Level N terbuka hanya jika SEMUA level sebelumnya selesai (100%). */
+  /* Status tiap level: urut berdasarkan API dan sekuensial.
+     Level N terbuka hanya jika tidak dikunci API dan level sebelumnya sudah selesai. */
   const levelStates: LevelStateItem[] = useMemo(() => {
     const levels = catalog?.levels || [];
     return levels.map((level, idx) => {
-      const done = isLevelDone(level, completedLevels);
-      const unlocked =
-        idx === 0 ||
-        levels.slice(0, idx).every((prev) => isLevelDone(prev, completedLevels));
-      const state = !unlocked ? "locked" : done ? "done" : "active";
+      const done = isLevelDone(level);
+      const isLockedByApi = level.isLocked === true || level.status === "LOCKED";
+      const prevLevelsDone =
+        idx === 0 || levels.slice(0, idx).every((prev) => isLevelDone(prev));
+      const unlocked = prevLevelsDone && !isLockedByApi;
+      const state: LevelStateItem["state"] = done ? "done" : unlocked ? "active" : "locked";
 
       const lessons = level.lessons || [];
       const totalChapters = lessons.length;
@@ -70,7 +65,7 @@ const BelajarPage = () => {
 
       return { level, state, totalChapters, completedChapters, percent };
     });
-  }, [catalog, completedLevels]);
+  }, [catalog]);
 
   const handleStartWorkout = (lessonSlug?: string) => {
     const slug = lessonSlug || "modul-abjad-a-z";

@@ -111,6 +111,79 @@ const ProfileSkeleton = () => (
   </div>
 );
 
+interface SignOutModalProps {
+  open: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+  loading?: boolean;
+}
+
+const SignOutModal = ({
+  open,
+  onCancel,
+  onConfirm,
+  loading = false,
+}: SignOutModalProps) => {
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, onCancel]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+      onClick={onCancel}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="exit-modal-title"
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#F66750]/10">
+          <LogOut className="h-6 w-6 text-[#F66750]" />
+        </div>
+
+        <h2
+          id="exit-modal-title"
+          className="text-center text-lg font-bold text-slate-800"
+        >
+          Keluar dari akun?
+        </h2>
+        <p className="mt-2 text-center text-sm text-slate-500">
+          Apakah Anda yakin ingin keluar dari akun Anda?
+        </p>
+
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row-reverse">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            className="w-full rounded-xl bg-[#F66750] px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+          >
+            {loading ? "Keluar..." : "Ya, Keluar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ProfilePage = () => {
   const router = useRouter();
   // null = belum selesai fetch; setelah fetch selesai diisi data real atau FALLBACK
@@ -123,6 +196,8 @@ const ProfilePage = () => {
   const [editBio, setEditBio] = useState("");
   const [editCity, setEditCity] = useState("");
   const [updateNotice, setUpdateNotice] = useState<string | null>(null);
+  const [showSignOutModal, setShowSignOutModal] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   // Fetch profile on mount
   useEffect(() => {
@@ -207,10 +282,20 @@ const ProfilePage = () => {
   };
 
   // Handle Logout
-  const handleSignOut = async () => {
-    if (confirm("Apakah Anda yakin ingin keluar dari akun?")) {
+  const handleSignOut = () => {
+    setShowSignOutModal(true);
+  };
+
+  const handleConfirmSignOut = async () => {
+    setSigningOut(true);
+    try {
       await apiService.signOut();
       router.push("/login");
+    } catch (err) {
+      console.error("Failed to sign out:", err);
+    } finally {
+      setSigningOut(false);
+      setShowSignOutModal(false);
     }
   };
 
@@ -244,10 +329,7 @@ const ProfilePage = () => {
           ) : (
             <>
               {/* Top bar */}
-              <div className="flex items-center justify-between">
-                <span className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-[#F66750]">
-                  Ruang Profil Inklusif
-                </span>
+              <div className="flex items-end justify-end">
                 <button
                   type="button"
                   onClick={() => setIsEditing(!isEditing)}
@@ -271,10 +353,10 @@ const ProfilePage = () => {
 
           {/* Edit Profile Form Modal / Box */}
           {isEditing && (
-            <section className="rounded-3xl border border-orange-200 bg-white p-5 shadow-sm">
+            <section className="rounded-3xl bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <h2 className="text-sm font-bold text-slate-800">
-                  Ubah Profil (PATCH /api/profile/update)
+                  Ubah Profil
                 </h2>
                 <button
                   type="button"
@@ -565,7 +647,7 @@ const ProfilePage = () => {
                 { id: "riwayat", label: "Riwayat Latihan" },
                 {
                   id: "tersimpan",
-                  label: `Tersimpan (${profile.savedItemsCount || 0})`,
+                  label: `Tersimpan `,
                 },
               ].map((t) => (
                 <button
@@ -604,7 +686,7 @@ const ProfilePage = () => {
                           {item.timeAgo} • {item.itemCountText}
                         </p>
                       </div>
-                      <span className="shrink-0 rounded-md bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-600">
+                      <span className="shrink-0 rounded-md text-[11px] font-bold text-emerald-600">
                         +{item.xpGained} XP
                       </span>
                     </li>
@@ -618,7 +700,7 @@ const ProfilePage = () => {
             ) : (
               <p className="mt-4 rounded-2xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">
                 {profile.savedItemsCount > 0
-                  ? `Ada ${profile.savedItemsCount} isyarat tersimpan di daftar Anda.`
+                  ? `Belum ada isyarat tersimpan.`
                   : "Belum ada isyarat tersimpan."}
               </p>
             )}
@@ -676,7 +758,7 @@ const ProfilePage = () => {
             <button
               type="button"
               onClick={handleSignOut}
-              className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 text-sm font-semibold text-[#F66750] transition hover:bg-red-100 active:scale-[0.99]"
+              className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-red-50 text-sm font-semibold text-[#F66750] transition hover:bg-red-100 active:scale-[0.99]"
             >
               <LogOut size={18} />
               Keluar dari Akun
@@ -688,6 +770,13 @@ const ProfilePage = () => {
       </main>
 
       <BarMenu />
+
+      <SignOutModal
+        open={showSignOutModal}
+        onCancel={() => setShowSignOutModal(false)}
+        onConfirm={handleConfirmSignOut}
+        loading={signingOut}
+      />
     </>
   );
 };

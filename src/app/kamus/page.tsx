@@ -51,18 +51,6 @@ const KamusPage = () => {
 
       <main className="flex flex-1 flex-col items-center mb-16 bg-[#F8FAFC] px-4 py-5 md:py-8">
         <div className="flex w-full max-w-md flex-col gap-5 md:max-w-2xl">
-          {/* Header kategori */}
-          <div className="flex items-center justify-between px-0.5">
-            <h1 className="text-base font-bold text-slate-800 md:text-lg">
-              Kategori Kosakata
-            </h1>
-            <Link
-              href="/kamus/semua"
-              className="text-xs font-semibold text-[#F66750] hover:underline md:text-sm"
-            >
-              Lihat Semua (40)
-            </Link>
-          </div>
 
           {/* Kartu tantangan harian */}
           <section
@@ -163,9 +151,6 @@ const KamusPage = () => {
                 <p className="text-[10px] font-bold uppercase tracking-wider text-[#F66750] md:text-xs">
                   Isyarat Pilihan Hari Ini
                 </p>
-                <span className="rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-600 md:text-xs">
-                  Tingkat Pemula
-                </span>
               </header>
 
               <div className="flex items-center gap-4">
@@ -203,9 +188,6 @@ const KamusPage = () => {
                 <p className="text-[10px] font-bold uppercase tracking-wider text-[#F66750] md:text-xs">
                   Isyarat Pilihan Hari Ini
                 </p>
-                <span className="rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-600 md:text-xs">
-                  Tingkat Pemula
-                </span>
               </header>
 
               <div className="flex items-center gap-4">

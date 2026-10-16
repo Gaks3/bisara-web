@@ -557,7 +557,6 @@ const Home = () => {
                   href="/belajar"
                   className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-[#F66750]/40 bg-orange-50/50 py-3 text-xs font-bold text-[#F66750] transition hover:bg-orange-50"
                 >
-                  <Sparkles size={16} />
                   Jelajahi Semua Modul di Pusat Belajar
                 </Link>
               </section>
@@ -597,15 +596,14 @@ const Home = () => {
                     visibleEntries.map((entry) => {
                       const isMe =
                         entry.user?.id === dashboard.user?.id ||
-                        entry.user?.name === dashboard.user?.name ||
-                        entry.user?.name === "You";
+                        entry.user?.name === dashboard.user?.name;
 
                       return (
                         <li
                           key={entry.rank + entry.user?.id}
-                          className={`flex items-center gap-3 rounded-2xl border p-3 transition ${
+                          className={`flex items-center gap-3 rounded-2xl p-3 transition ${
                             isMe
-                              ? "border-red-200 bg-red-50/80"
+                              ? " bg-red-50/80"
                               : entry.rank === 1
                               ? "border-yellow-200 bg-yellow-50/70"
                               : "border-transparent bg-slate-50/50"

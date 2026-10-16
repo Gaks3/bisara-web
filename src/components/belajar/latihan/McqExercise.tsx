@@ -85,7 +85,7 @@ export const McqExercise = ({
   return (
     <section className="flex flex-col gap-4 rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between">
-        <span className="flex items-center gap-1.5 rounded-md bg-red-50 px-2 py-0.5 text-xs font-bold text-[#F66750]">
+        <span className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-bold text-[#F66750]">
           <Gamepad2 size={14} />
           Kuis Pilihan Ganda
         </span>
@@ -121,10 +121,10 @@ export const McqExercise = ({
       {/* Feedback Alert */}
       {mcqFeedback && (
         <div
-          className={`flex items-center gap-2 rounded-2xl p-3.5 text-xs font-semibold ${
+          className={`flex items-center gap-2 rounded-2xl  text-xs font-semibold ${
             mcqStatus === "correct"
-              ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-              : "bg-red-50 text-red-800 border border-red-200"
+              ? ""
+              : ""
           }`}
         >
           {mcqStatus === "correct" ? (
@@ -141,7 +141,7 @@ export const McqExercise = ({
         {exercise.options?.map((opt, i) => {
           const isSelected = selectedOption === i;
           let style =
-            "border-slate-200 bg-white text-slate-700 hover:border-orange-300 hover:bg-orange-50/50";
+            "border bg-white text-slate-700 hover:bg-orange-50/50";
           if (isSelected) {
             if (mcqStatus === "correct") {
               style = "border-emerald-500 bg-emerald-500 text-white";

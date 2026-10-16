@@ -10,7 +10,6 @@ import {
   LessonDetailData,
   LessonMaterial,
 } from "@/lib/api-service";
-import { saveCompletedLevel } from "@/components/belajar/utils";
 import {
   CameraExercise,
   LatihanCompleted,
@@ -170,8 +169,6 @@ function LatihanExerciseContent() {
     if (exerciseIndex < exercises.length - 1) {
       setExerciseIndex((prev) => prev + 1);
     } else {
-      const levelCode = lesson.level?.code || 1;
-      saveCompletedLevel(levelCode);
       setStage("COMPLETED");
     }
   };
