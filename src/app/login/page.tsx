@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   AlertCircle,
   ArrowLeft,
@@ -20,7 +22,21 @@ import {
 import Footer from "@/components/Footer";
 import Navbar from "@/components/Navbar";
 import { authClient } from "@/lib/auth-client";
-import { apiService } from "@/lib/api-service";
+import { useRouter } from "next/navigation";
+
+const loginSchema = z.object({
+  email: z
+    .string()
+    .min(1, "Email wajib diisi")
+    .email("Format email tidak valid"),
+  password: z
+    .string()
+    .min(1, "Kata sandi wajib diisi")
+    .min(8, "Kata sandi minimal 8 karakter"),
+  rememberMe: z.boolean(),
+});
+
+type LoginFormData = z.infer<typeof loginSchema>;
 
 const GoogleIcon = () => (
   <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
@@ -45,58 +61,123 @@ const GoogleIcon = () => (
 
 const Login = () => {
   const router = useRouter();
+
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  if (typeof window !== "undefined") {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("verified") === "true") {
+      setSuccessMessage(
+        "Email Anda berhasil diverifikasi! Silakan masuk ke akun Bisara Anda.",
+      );
+    }
+  }
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+      rememberMe: true,
+    },
+    mode: "onTouched",
+  });
+
+  const onSubmit = async (data: LoginFormData) => {
     setErrorMessage("");
     setSuccessMessage("");
-
-    if (!email || !password) {
-      setErrorMessage("Silakan masukkan email dan kata sandi Anda.");
-      return;
-    }
-
     setLoading(true);
 
     try {
-      const res = await apiService.signInEmail({
-        email,
-        password,
-        rememberMe,
+      const res = await authClient.signIn.email({
+        email: data.email,
+        password: data.password,
+        callbackURL: `${process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000")}/home`,
+        rememberMe: data.rememberMe,
       });
 
       if (res?.error) {
-        setErrorMessage(
-          typeof res.error === "string"
-            ? res.error
-            : res.error.message || "Gagal masuk. Periksa kembali email dan kata sandi Anda."
-        );
+        console.error("Login auth error:", res.error);
+        const code = res.error.code;
+        const msg = res.error.message;
+
+        if (
+          code === "EMAIL_NOT_VERIFIED" ||
+          msg === "Email not verified" ||
+          msg?.toLowerCase().includes("not verified")
+        ) {
+          setErrorMessage(
+            "Email Anda belum diverifikasi. Silakan periksa email Anda untuk tautan verifikasi.",
+          );
+        } else {
+          setErrorMessage(
+            msg || "Gagal masuk. Periksa kembali email dan kata sandi Anda.",
+          );
+        }
         setLoading(false);
         return;
       }
 
       setSuccessMessage("Berhasil masuk! Mengarahkan ke beranda...");
-      // Redirect to /home
       setTimeout(() => {
         router.push("/home");
       }, 800);
     } catch (err: unknown) {
       console.error("Login error:", err);
-      const errObj = err as { response?: { data?: { error?: { message?: string }; message?: string } }; message?: string };
+      const errObj = err as {
+        code?: string;
+        message?: string;
+        error?: { code?: string; message?: string } | string;
+        response?: {
+          data?: {
+            code?: string;
+            message?: string;
+            error?: { code?: string; message?: string } | string;
+          };
+        };
+      };
+
+      const code =
+        errObj.code ||
+        (typeof errObj.error === "object" ? errObj.error?.code : undefined) ||
+        errObj.response?.data?.code ||
+        (typeof errObj.response?.data?.error === "object"
+          ? errObj.response?.data?.error?.code
+          : undefined);
+
       const msg =
-        errObj.response?.data?.error?.message ||
         errObj.response?.data?.message ||
-        errObj.message ||
-        "Gagal masuk. Periksa kembali kredensial Anda.";
-      setErrorMessage(msg);
+        (typeof errObj.response?.data?.error === "string"
+          ? errObj.response?.data?.error
+          : typeof errObj.response?.data?.error === "object"
+            ? errObj.response?.data?.error?.message
+            : undefined) ||
+        (typeof errObj.error === "object"
+          ? errObj.error?.message
+          : typeof errObj.error === "string"
+            ? errObj.error
+            : undefined) ||
+        errObj.message;
+
+      if (
+        code === "EMAIL_NOT_VERIFIED" ||
+        msg === "Email not verified" ||
+        msg?.toLowerCase().includes("not verified")
+      ) {
+        setErrorMessage(msg || "Email not verified");
+      } else if (msg) {
+        setErrorMessage(msg);
+      } else {
+        setErrorMessage("Gagal masuk. Silakan coba lagi.");
+      }
       setLoading(false);
     }
   };
@@ -106,7 +187,10 @@ const Login = () => {
     setGoogleLoading(true);
 
     try {
-      const redirectUrl = typeof window !== "undefined" ? `${window.location.origin}/home` : "/home";
+      const redirectUrl =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/home`
+          : "/home";
       await authClient.signIn.social({
         provider: "google",
         callbackURL: redirectUrl,
@@ -115,9 +199,12 @@ const Login = () => {
     } catch (err: unknown) {
       console.error("Google login error:", err);
       // Fallback: direct redirect to backend endpoint
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+      const baseUrl =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+      // eslint-disable-next-line
       window.location.href = `${baseUrl}/api/auth/sign-in/google?callbackURL=${encodeURIComponent(
-        window.location.origin + "/home"
+        window.location.origin + "/home",
       )}`;
     } finally {
       setTimeout(() => setGoogleLoading(false), 2000);
@@ -154,7 +241,8 @@ const Login = () => {
                 Selamat Datang di Bisara
               </h1>
               <p className="max-w-[16rem] font-light text-xs leading-relaxed text-white/80 md:max-w-xs md:text-sm">
-                Mari belajar bahasa isyarat dengan mudah, ramah, dan bebas hambatan.
+                Mari belajar bahasa isyarat dengan mudah, ramah, dan bebas
+                hambatan.
               </p>
             </div>
           </section>
@@ -207,10 +295,14 @@ const Login = () => {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <form
+              onSubmit={handleSubmit(onSubmit)}
+              noValidate
+              className="flex flex-col gap-4"
+            >
               <div className="flex flex-col gap-1.5">
                 <label
-                  htmlFor="identifier"
+                  htmlFor="email"
                   className="text-sm font-semibold text-slate-700"
                 >
                   Email
@@ -221,17 +313,24 @@ const Login = () => {
                     className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
                   />
                   <input
-                    id="identifier"
-                    name="identifier"
+                    id="email"
                     type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    {...register("email")}
                     autoComplete="email"
                     placeholder="contoh@email.com"
-                    className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm text-slate-700 placeholder:text-slate-400 focus:border-[#F66750] focus:outline-none focus:ring-2 focus:ring-[#F66750]/20"
+                    className={`h-12 w-full rounded-xl border bg-slate-50 pl-11 pr-4 text-sm text-slate-700 placeholder:text-slate-400 transition focus:outline-none focus:ring-2 ${
+                      errors.email
+                        ? "border-red-400 focus:border-red-500 focus:ring-red-200"
+                        : "border-slate-200 focus:border-[#F66750] focus:ring-[#F66750]/20"
+                    }`}
                   />
                 </div>
+                {errors.email && (
+                  <p className="mt-0.5 flex items-center gap-1 text-xs text-red-500">
+                    <AlertCircle size={14} className="shrink-0" />
+                    <span>{errors.email.message}</span>
+                  </p>
+                )}
               </div>
 
               <div className="flex flex-col gap-1.5">
@@ -243,7 +342,7 @@ const Login = () => {
                     Kata Sandi
                   </label>
                   <Link
-                    href="/lupa-password"
+                    href="/forgot-password"
                     className="text-xs font-semibold text-[#F66750] hover:underline"
                   >
                     Lupa Kata Sandi?
@@ -256,14 +355,15 @@ const Login = () => {
                   />
                   <input
                     id="password"
-                    name="password"
                     type={showPassword ? "text" : "password"}
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    {...register("password")}
                     autoComplete="current-password"
                     placeholder="••••••••"
-                    className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-12 text-sm text-slate-700 placeholder:text-slate-400 focus:border-[#F66750] focus:outline-none focus:ring-2 focus:ring-[#F66750]/20"
+                    className={`h-12 w-full rounded-xl border bg-slate-50 pl-11 pr-12 text-sm text-slate-700 placeholder:text-slate-400 transition focus:outline-none focus:ring-2 ${
+                      errors.password
+                        ? "border-red-400 focus:border-red-500 focus:ring-red-200"
+                        : "border-slate-200 focus:border-[#F66750] focus:ring-[#F66750]/20"
+                    }`}
                   />
                   <button
                     type="button"
@@ -278,14 +378,18 @@ const Login = () => {
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
+                {errors.password && (
+                  <p className="mt-0.5 flex items-center gap-1 text-xs text-red-500">
+                    <AlertCircle size={14} className="shrink-0" />
+                    <span>{errors.password.message}</span>
+                  </p>
+                )}
               </div>
 
               <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
                 <input
                   type="checkbox"
-                  name="remember"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
+                  {...register("rememberMe")}
                   className="h-4 w-4 rounded border-slate-300 accent-[#F66750]"
                 />
                 Ingat saya di perangkat ini
@@ -327,7 +431,10 @@ const Login = () => {
               >
                 {googleLoading ? (
                   <>
-                    <Loader2 size={18} className="animate-spin text-slate-500" />
+                    <Loader2
+                      size={18}
+                      className="animate-spin text-slate-500"
+                    />
                     Menghubungkan ke Google...
                   </>
                 ) : (
