@@ -1,0 +1,38 @@
+# Dependensi & output build lokal
+node_modules
+.next
+out
+build
+coverage
+*.tsbuildinfo
+next-env.d.ts
+
+# File Git
+.git
+.gitignore
+
+# Environment files rahasia (disuntikkan via docker-compose / runtime env)
+.env*.local
+.env.development*
+
+# File IDE & Editor
+.vscode
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Docker & dokumentasi
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+*.md
+reponse-api-bisara.json

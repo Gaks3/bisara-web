@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   serverExternalPackages: ["onnxruntime-web"],
   images: {
     remotePatterns: [
@@ -31,7 +32,8 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
-        hostname: "**",
+        hostname: "api.bisara.web.id",
+        pathname: "/**",
       },
       {
         protocol: "http",
