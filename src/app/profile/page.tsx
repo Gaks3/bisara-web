@@ -33,6 +33,10 @@ import {
   ProfileData,
   UpdateProfileRequest,
 } from "@/lib/api-service";
+import {
+  applyAccessibilityPreferences,
+  getStoredAccessibilityPreferences,
+} from "@/lib/accessibility";
 
 const GRADIENT_BRAND = "linear-gradient(135deg, #F66750 0%, #F97316 100%)";
 
@@ -204,9 +208,32 @@ const ProfilePage = () => {
     let isMounted = true;
     async function fetchProfile() {
       try {
+        // Immediate apply from stored preferences
+        const localPrefs = getStoredAccessibilityPreferences();
+        applyAccessibilityPreferences({
+          dyslexiaFont: localPrefs.dyslexiaFont,
+          highContrast: localPrefs.highContrast,
+        });
+
         const data = await apiService.getProfile();
         if (isMounted && data) {
-          setProfile(data);
+          const mergedPreferences = {
+            ...data.preferences,
+            dyslexiaFont: localPrefs.dyslexiaFont || data.preferences.dyslexiaFont,
+            highContrast: localPrefs.highContrast || data.preferences.highContrast,
+            dailyReminder: localPrefs.dailyReminder ?? data.preferences.dailyReminder,
+          };
+
+          applyAccessibilityPreferences({
+            dyslexiaFont: mergedPreferences.dyslexiaFont,
+            highContrast: mergedPreferences.highContrast,
+            dailyReminder: mergedPreferences.dailyReminder,
+          });
+
+          setProfile({
+            ...data,
+            preferences: mergedPreferences,
+          });
           setEditName(data.user?.name || "");
           setEditBio(data.user?.bio || "");
           setEditCity(data.user?.city || "");
@@ -230,17 +257,22 @@ const ProfilePage = () => {
     key: "dailyReminder" | "dyslexiaFont" | "highContrast"
   ) => {
     if (!profile) return;
+    const nextVal = !profile.preferences[key];
     const updatedPref = {
       ...profile.preferences,
-      [key]: !profile.preferences[key],
+      [key]: nextVal,
     };
 
-    // Apply visual effects if needed
-    if (key === "highContrast") {
-      document.documentElement.classList.toggle("high-contrast", updatedPref.highContrast);
+    // Apply visual effects & localStorage persistence immediately
+    if (key === "dyslexiaFont") {
+      applyAccessibilityPreferences({ dyslexiaFont: nextVal });
+    } else if (key === "highContrast") {
+      applyAccessibilityPreferences({ highContrast: nextVal });
+    } else if (key === "dailyReminder") {
+      applyAccessibilityPreferences({ dailyReminder: nextVal });
     }
 
-    setProfile((prev) => prev ? { ...prev, preferences: updatedPref } : prev);
+    setProfile((prev) => (prev ? { ...prev, preferences: updatedPref } : prev));
 
     try {
       await apiService.updateProfile({ preferences: updatedPref });
@@ -707,7 +739,10 @@ const ProfilePage = () => {
           </section>
 
           {/* Aksesibilitas & pengaturan */}
-          <section className="rounded-3xl border border-slate-100 bg-white p-4 shadow-sm md:p-5">
+          <section
+            id="aksesibilitas"
+            className="scroll-mt-20 rounded-3xl border border-slate-100 bg-white p-4 shadow-sm md:p-5"
+          >
             <h2 className="text-base font-bold text-slate-900">
               Aksesibilitas &amp; Pengaturan
             </h2>
@@ -721,7 +756,7 @@ const ProfilePage = () => {
                   icon: Type,
                   iconClass: "bg-violet-50 text-violet-600",
                   title: "Font Ramah Disleksia",
-                  desc: "Gunakan font dengan jarak dan bentuk lebih ramah pembaca",
+                  desc: "Gunakan font OpenDyslexic / Lexend dengan bentuk dan jarak huruf khusus untuk mempermudah membaca",
                   checked: !!profile.preferences?.dyslexiaFont,
                   onChange: () => handleTogglePreference("dyslexiaFont"),
                 },
@@ -729,7 +764,7 @@ const ProfilePage = () => {
                   icon: Moon,
                   iconClass: "bg-slate-800 text-white",
                   title: "Mode Kontras Tinggi",
-                  desc: "Perjelas batas visual elemen UI untuk aksesibilitas tinggi",
+                  desc: "Tingkatkan kontras warna (WCAG AAA) dan pertegas batas elemen UI untuk penglihatan lebih jelas",
                   checked: !!profile.preferences?.highContrast,
                   onChange: () => handleTogglePreference("highContrast"),
                 },
@@ -737,7 +772,7 @@ const ProfilePage = () => {
                   icon: Bell,
                   iconClass: "bg-red-50 text-[#F66750]",
                   title: "Pengingat Latihan Harian",
-                  desc: `Notifikasi setiap jam ${profile.preferences?.reminderTime ?? "19:00 WIB"}`,
+                  desc: `Notifikasi latihan jam ${profile.preferences?.reminderTime ?? "19:00 WIB"} (Pengiriman notifikasi belum aktif - dalam tahap perencanaan)`,
                   checked: !!profile.preferences?.dailyReminder,
                   onChange: () => handleTogglePreference("dailyReminder"),
                 },

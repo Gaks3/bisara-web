@@ -128,3 +128,205 @@
     @apply font-sans;
   }
 }
+
+@font-face {
+  font-family: "OpenDyslexic";
+  src: url("https://cdn.jsdelivr.net/npm/open-dyslexic@1.0.3/woff/OpenDyslexic-Regular.woff")
+    format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "OpenDyslexic";
+  src: url("https://cdn.jsdelivr.net/npm/open-dyslexic@1.0.3/woff/OpenDyslexic-Bold.woff")
+    format("woff");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "OpenDyslexic";
+  src: url("https://cdn.jsdelivr.net/npm/open-dyslexic@1.0.3/woff/OpenDyslexic-Italic.woff")
+    format("woff");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+html.dyslexia-font,
+html.dyslexia-font body,
+html.dyslexia-font button,
+html.dyslexia-font input,
+html.dyslexia-font textarea,
+html.dyslexia-font select,
+html.dyslexia-font h1,
+html.dyslexia-font h2,
+html.dyslexia-font h3,
+html.dyslexia-font h4,
+html.dyslexia-font h5,
+html.dyslexia-font h6,
+html.dyslexia-font p,
+html.dyslexia-font span,
+html.dyslexia-font a,
+html.dyslexia-font li,
+html.dyslexia-font label {
+  font-family:
+    "OpenDyslexic",
+    "Lexend",
+    "Comic Sans MS",
+    "Comic Neue",
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif !important;
+  letter-spacing: 0.04em !important;
+  word-spacing: 0.12em !important;
+  line-height: 1.65 !important;
+}
+
+html.high-contrast {
+  --background: #ffffff;
+  --foreground: #000000;
+  --card: #ffffff;
+  --card-foreground: #000000;
+  --border: #000000;
+  --input: #000000;
+  --ring: #000000;
+  --muted: #f1f5f9;
+  --muted-foreground: #000000;
+  color-scheme: light;
+}
+
+html.high-contrast body {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+/* Background containers & cards */
+html.high-contrast main {
+  background-color: #f8fafc !important;
+}
+
+html.high-contrast section,
+html.high-contrast article,
+html.high-contrast .bg-white,
+html.high-contrast .bg-slate-50,
+html.high-contrast .bg-slate-100 {
+  border-color: #000000 !important;
+}
+
+/* Card outlines & separation */
+html.high-contrast section {
+  box-shadow: 0 0 0 2px #000000 !important;
+}
+
+html.high-contrast div.rounded-2xl,
+html.high-contrast div.rounded-3xl,
+html.high-contrast li.rounded-2xl {
+  border-color: #000000 !important;
+}
+
+/* Text contrast enhancements */
+html.high-contrast .text-slate-400,
+html.high-contrast .text-slate-500,
+html.high-contrast .text-slate-600,
+html.high-contrast .text-muted-foreground {
+  color: #000000 !important;
+  font-weight: 600 !important;
+}
+
+html.high-contrast .text-slate-700,
+html.high-contrast .text-slate-800,
+html.high-contrast .text-slate-900 {
+  color: #000000 !important;
+  font-weight: 700 !important;
+}
+
+/* High contrast for white text on colored backgrounds */
+html.high-contrast .text-white\/80,
+html.high-contrast .text-white\/85,
+html.high-contrast .text-white\/90 {
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+/* Interactive form inputs */
+html.high-contrast input,
+html.high-contrast textarea,
+html.high-contrast select {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border: 2px solid #000000 !important;
+  font-weight: 600 !important;
+}
+
+html.high-contrast input:focus,
+html.high-contrast textarea:focus,
+html.high-contrast select:focus {
+  outline: 3px solid #000000 !important;
+  outline-offset: 2px !important;
+}
+
+/* Interactive buttons and focus indicators */
+html.high-contrast button:focus-visible,
+html.high-contrast a:focus-visible {
+  outline: 3px solid #000000 !important;
+  outline-offset: 2px !important;
+}
+
+html.high-contrast button {
+  border-color: #000000 !important;
+}
+
+/* High contrast badges & indicators */
+html.high-contrast .bg-red-50,
+html.high-contrast .bg-yellow-50,
+html.high-contrast .bg-emerald-50,
+html.high-contrast .bg-sky-50,
+html.high-contrast .bg-violet-50 {
+  border: 1.5px solid #000000 !important;
+}
+
+/* Switches & Toggles */
+html.high-contrast [role="switch"] {
+  border: 2px solid #000000 !important;
+}
+
+html.high-contrast [role="switch"] span {
+  border: 1px solid #000000 !important;
+}
+
+/* Navigation bars */
+html.high-contrast nav[aria-label="Menu utama"],
+html.high-contrast header {
+  border-top: 2px solid #000000 !important;
+  border-bottom: 2px solid #000000 !important;
+}
+
+/* Tabs */
+html.high-contrast [role="tablist"] {
+  border: 2px solid #000000 !important;
+}
+
+html.high-contrast [role="tab"][aria-selected="true"] {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+html.high-contrast [role="tab"][aria-selected="false"] {
+  color: #000000 !important;
+  font-weight: 700 !important;
+}
+
+/* Progress bar in high contrast */
+html.high-contrast [role="progressbar"] {
+  background-color: rgba(0, 0, 0, 0.4) !important;
+  border: 2px solid #ffffff !important;
+}
+
+html.high-contrast [role="progressbar"] > div {
+  background-color: #ffffff !important;
+}
